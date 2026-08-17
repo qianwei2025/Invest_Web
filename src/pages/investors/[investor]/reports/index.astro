@@ -36,11 +36,14 @@ const investor = investors[slug];
 </BaseLayout>
 
 <script>
-  import { escapeHtml, fetchReports, formatShortDate } from '../../../../lib/api';
-  import { reportEntryByIdPath } from '../../../../lib/paths';
+  import { deleteReport, escapeHtml, fetchReports, formatShortDate } from '../../../../lib/api';
+  import { reportEditPath, reportEntryByIdPath, reportsPath } from '../../../../lib/paths';
+  import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
 
   const investor = location.pathname.split('/').filter(Boolean)[1] || '';
   const root = document.querySelector('[data-report-list]');
+
+  applyFamilyUI();
 
   if (new URLSearchParams(location.search).get('saved') === '1') {
     document.querySelector('[data-saved-banner]')?.removeAttribute('hidden');
@@ -49,26 +52,59 @@ const investor = investors[slug];
     document.querySelector('[data-deleted-banner]')?.removeAttribute('hidden');
   }
 
+  function bindDeletes() {
+    root?.querySelectorAll<HTMLButtonElement>('[data-delete]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const id = button.dataset.delete;
+        if (!id) return;
+        if (!confirm('Delete this report? This cannot be undone.')) return;
+        button.disabled = true;
+        button.textContent = 'Deleting…';
+        try {
+          await deleteReport(id);
+          window.location.href = `${reportsPath(investor)}?deleted=1`;
+        } catch {
+          button.disabled = false;
+          button.textContent = 'Delete';
+          alert('Could not delete. Log in again and try once more.');
+        }
+      });
+    });
+  }
+
   async function load() {
     if (!root) return;
     try {
       const items = await fetchReports(investor);
+      const family = isLoggedIn();
       if (!items.length) {
         root.innerHTML = `<div class="card empty"><h3>No reports yet</h3><p class="muted">Journals are for one company. Reports are for summarizing learning over time.</p></div>`;
         return;
       }
       root.innerHTML = `<div class="journal-list">${items
         .map((entry) => {
-          const href = reportEntryByIdPath(entry.investor, entry.id);
-          return `<a class="card journal-card" href="${href}">
+          const detail = reportEntryByIdPath(entry.investor, entry.id);
+          const edit = reportEditPath(entry.investor, entry.id);
+          return `<div class="card journal-card journal-row">
             <div class="date-block"><b>${escapeHtml(entry.period)}</b>${formatShortDate(entry.date)}</div>
             <div>
               <strong>${escapeHtml(entry.title)}</strong>
               <div class="muted">Period: ${escapeHtml(entry.period)}</div>
             </div>
-          </a>`;
+            <div class="row-actions">
+              <a class="btn btn-small btn-ink" href="${detail}">Detail</a>
+              ${
+                family
+                  ? `<a class="btn btn-small" href="${edit}">Edit</a>
+                     <button class="btn btn-small" type="button" data-delete="${entry.id}">Delete</button>`
+                  : ''
+              }
+            </div>
+          </div>`;
         })
         .join('')}</div>`;
+      bindDeletes();
+      applyFamilyUI();
     } catch {
       root.innerHTML = `<div class="card empty"><h3>Could not load reports</h3></div>`;
     }

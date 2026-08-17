@@ -38,11 +38,14 @@ const investor = investors[slug];
 </BaseLayout>
 
 <script>
-  import { escapeHtml, fetchJournals, formatShortDate } from '../../../../lib/api';
-  import { journalEntryByIdPath } from '../../../../lib/paths';
+  import { deleteJournal, escapeHtml, fetchJournals, formatShortDate } from '../../../../lib/api';
+  import { journalEditPath, journalEntryByIdPath, journalPath } from '../../../../lib/paths';
+  import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
 
   const investor = location.pathname.split('/').filter(Boolean)[1] || '';
   const root = document.querySelector('[data-journal-list]');
+
+  applyFamilyUI();
 
   if (new URLSearchParams(location.search).get('saved') === '1') {
     document.querySelector('[data-saved-banner]')?.removeAttribute('hidden');
@@ -55,32 +58,61 @@ const investor = investors[slug];
     return '★'.repeat(level) + '☆'.repeat(Math.max(0, 5 - level));
   }
 
+  function bindDeletes() {
+    root?.querySelectorAll<HTMLButtonElement>('[data-delete]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const id = button.dataset.delete;
+        if (!id) return;
+        if (!confirm('Delete this journal entry? This cannot be undone.')) return;
+        button.disabled = true;
+        button.textContent = 'Deleting…';
+        try {
+          await deleteJournal(id);
+          window.location.href = `${journalPath(investor)}?deleted=1`;
+        } catch {
+          button.disabled = false;
+          button.textContent = 'Delete';
+          alert('Could not delete. Log in again and try once more.');
+        }
+      });
+    });
+  }
+
   async function load() {
     if (!root) return;
     try {
       const items = await fetchJournals(investor);
+      const family = isLoggedIn();
       if (!items.length) {
         root.innerHTML = `<div class="card empty"><h3>Waiting for the first journal</h3><p class="muted">Log in, pick this investor, and click Add a journal when researching a company.</p></div>`;
         return;
       }
       root.innerHTML = `<div class="journal-list">${items
         .map((entry) => {
-          const href = journalEntryByIdPath(entry.investor, entry.id);
+          const detail = journalEntryByIdPath(entry.investor, entry.id);
+          const edit = journalEditPath(entry.investor, entry.id);
           const date = new Date(`${entry.date}T12:00:00`);
-          return `<a class="card journal-card" href="${href}">
+          return `<div class="card journal-card journal-row">
             <div class="date-block"><b>${date.getDate()}</b>${date.toLocaleString('en-US', { month: 'short' })} ${date.getFullYear()}</div>
             <div>
               <div class="ticker">${escapeHtml(entry.ticker)} · ${escapeHtml(entry.company)}</div>
               <strong>${escapeHtml(entry.title)}</strong>
-              <div class="muted">${formatShortDate(entry.date)}</div>
+              <div class="muted">${formatShortDate(entry.date)} · ${escapeHtml(entry.action)} · ${stars(Number(entry.confidence) || 0)}</div>
             </div>
-            <div>
-              <span class="badge">${escapeHtml(entry.action)}</span>
-              <div style="margin-top:8px">${stars(Number(entry.confidence) || 0)}</div>
+            <div class="row-actions">
+              <a class="btn btn-small btn-ink" href="${detail}">Detail</a>
+              ${
+                family
+                  ? `<a class="btn btn-small" href="${edit}">Edit</a>
+                     <button class="btn btn-small" type="button" data-delete="${entry.id}">Delete</button>`
+                  : ''
+              }
             </div>
-          </a>`;
+          </div>`;
         })
         .join('')}</div>`;
+      bindDeletes();
+      applyFamilyUI();
     } catch {
       root.innerHTML = `<div class="card empty"><h3>Could not load journals</h3><p class="muted">Check your connection and refresh.</p></div>`;
     }

@@ -433,6 +433,18 @@ h1 {
   border-color: var(--moss);
 }
 
+.journal-row {
+  cursor: default;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
 .date-block {
   font-family: var(--font-mono);
   font-size: 0.78rem;
