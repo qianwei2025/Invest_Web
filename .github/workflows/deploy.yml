@@ -26,7 +26,8 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          PUBLIC_BASE: /Invest_Web
+          # Custom domain uses site root. Do not use /Invest_Web with srinvesting.com.
+          PUBLIC_BASE: /
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

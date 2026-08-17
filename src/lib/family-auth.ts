@@ -8,7 +8,7 @@ export const GITHUB_TOKEN_KEY = 'shen-github-token';
 export const DRAFTS_KEY = 'shen-journal-drafts';
 
 export const GITHUB_REPO = {
-  owner: 'qianweishen',
+  owner: 'qianwei2025',
   repo: 'Invest_Web',
   branch: 'main',
 };

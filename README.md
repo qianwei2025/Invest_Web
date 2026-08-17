@@ -127,6 +127,28 @@ The site calculates:
 
 Original investment, current value, and gain/loss are calculated in code. Do not type those in.
 
+## Custom domain (srinvesting.com)
+
+Yes — you can keep GitHub Pages hosting and use a real `.com`.
+
+1. Buy **srinvesting.com** at [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/) (~$10.50/year).
+2. In Cloudflare DNS for that domain, add:
+
+| Type | Name | Content |
+| --- | --- | --- |
+| A | `@` | `185.199.108.153` |
+| A | `@` | `185.199.109.153` |
+| A | `@` | `185.199.110.153` |
+| A | `@` | `185.199.111.153` |
+| CNAME | `www` | `qianwei2025.github.io` |
+
+3. On GitHub: **Settings → Pages → Custom domain** → enter `srinvesting.com` → Save → wait for DNS check → turn on **Enforce HTTPS**.
+4. Also set Pages source to **GitHub Actions** if it is not already.
+
+This repo already includes `public/CNAME` with `srinvesting.com`.
+
+Temporary URL until the domain works: `https://qianwei2025.github.io/Invest_Web/` (only after Pages is enabled).
+
 ## Deployment
 
 1. Create a GitHub repository named `Invest_Web` (or change `PUBLIC_BASE` in `.github/workflows/deploy.yml`).
