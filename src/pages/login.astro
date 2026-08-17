@@ -15,19 +15,22 @@ const people = allInvestors();
         Anyone can read the journals. Only the family can add one.
         After you log in, Save on the live website stores entries in the family database.
       </p>
+      <p class="notice">
+        Family login: <code>qianwei.shen@gmail.com</code> / password <code>123456</code>
+      </p>
 
       <div id="login-card" class="card login-box" style="margin-inline: 0">
         <form class="form" data-login>
           <label>
             Email
-            <input type="email" name="email" autocomplete="username" required />
+            <input type="email" name="email" value="qianwei.shen@gmail.com" autocomplete="username" required />
           </label>
           <label>
             Password
             <input type="password" name="password" autocomplete="current-password" required />
           </label>
           <button class="btn btn-ink" type="submit">Log in</button>
-          <p class="muted" data-login-error hidden>That email or password did not match, or the save service is unavailable.</p>
+          <p class="muted" data-login-error hidden></p>
         </form>
       </div>
 
@@ -53,7 +56,7 @@ const people = allInvestors();
 <script>
   import {
     applyFamilyUI,
-    checkPassword,
+    familyLogin,
     getWriter,
     isLoggedIn,
     setLoggedIn,
@@ -79,12 +82,19 @@ const people = allInvestors();
     const form = event.target as HTMLFormElement;
     const data = new FormData(form);
     const button = form.querySelector('button[type="submit"]');
-    if (button) button.setAttribute('disabled', 'true');
-    const ok = await checkPassword(String(data.get('email') || ''), String(data.get('password') || ''));
-    if (button) button.removeAttribute('disabled');
     const error = document.querySelector<HTMLElement>('[data-login-error]');
-    if (!ok) {
-      if (error) error.hidden = false;
+    if (error) {
+      error.hidden = true;
+      error.textContent = '';
+    }
+    if (button) button.setAttribute('disabled', 'true');
+    const fail = await familyLogin(String(data.get('email') || ''), String(data.get('password') || ''));
+    if (button) button.removeAttribute('disabled');
+    if (fail) {
+      if (error) {
+        error.hidden = false;
+        error.textContent = fail;
+      }
       return;
     }
     setLoggedIn(true);

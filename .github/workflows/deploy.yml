@@ -28,7 +28,7 @@ jobs:
         env:
           # Custom domain uses site root. Do not use /Invest_Web with sr-investing.com.
           PUBLIC_BASE: /
-          PUBLIC_API_BASE: https://sr-investing-api.srinvesting.workers.dev
+          PUBLIC_API_BASE: https://save.sr-investing.com
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

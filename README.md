@@ -187,7 +187,7 @@ Anyone can read the public pages. To add writing on **https://sr-investing.com**
 3. Pick Sherman or Roy.
 4. Click **Add a journal**, **Add a report**, or **Add a holding**, then **Save**.
 
-Entries are stored in a Cloudflare D1 database via `api.sr-investing.com`. They show up on the live site right away (no git push required for writing).
+Entries are stored in a Cloudflare D1 database via `https://save.sr-investing.com`. They show up on the live site right away (no git push required for writing).
 
 Simple rule: new company idea → **Journal**. End of a learning stretch → **Report**.
 
@@ -206,12 +206,9 @@ npx wrangler secret put SESSION_SECRET --config worker/wrangler.toml
 npm run api:deploy
 ```
 
-Then in Cloudflare DNS for `sr-investing.com`, either:
+Then use the Worker custom domain (already set): `https://save.sr-investing.com`
 
-- Use the Worker URL directly (already configured): `https://sr-investing-api.srinvesting.workers.dev`
-- Or attach custom domain `api.sr-investing.com` in **Workers → sr-investing-api → Triggers → Custom Domains**
-
-If you add a manual `api` DNS record, it must be **Proxied (orange cloud)**. A grey-cloud/DNS-only record will point at GitHub Pages and login will fail.
+Avoid a manual grey-cloud `api` DNS record pointing at GitHub Pages — that breaks login.
 
 
 ## Starting empty
