@@ -29,7 +29,8 @@ export async function checkPassword(email: string, password: string) {
   try {
     await apiLogin(email.trim().toLowerCase(), password);
     return true;
-  } catch {
+  } catch (error) {
+    console.error('Family login failed:', error);
     return false;
   }
 }

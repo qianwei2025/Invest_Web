@@ -206,13 +206,12 @@ npx wrangler secret put SESSION_SECRET --config worker/wrangler.toml
 npm run api:deploy
 ```
 
-Then in Cloudflare DNS for `sr-investing.com`, add:
+Then in Cloudflare DNS for `sr-investing.com`, either:
 
-| Type | Name | Content | Proxy |
-| --- | --- | --- | --- |
-| CNAME | `api` | `sr-investing-api.<your-subdomain>.workers.dev` | DNS only |
+- Use the Worker URL directly (already configured): `https://sr-investing-api.srinvesting.workers.dev`
+- Or attach custom domain `api.sr-investing.com` in **Workers → sr-investing-api → Triggers → Custom Domains**
 
-Or attach custom domain `api.sr-investing.com` to the Worker in the Cloudflare dashboard.
+If you add a manual `api` DNS record, it must be **Proxied (orange cloud)**. A grey-cloud/DNS-only record will point at GitHub Pages and login will fail.
 
 
 ## Starting empty

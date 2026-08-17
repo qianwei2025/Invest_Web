@@ -63,12 +63,20 @@ function authHeaders(): HeadersInit {
 }
 
 export async function apiLogin(email: string, password: string) {
-  const res = await fetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await parse(res);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch {
+    throw new Error('Could not reach the save service. Check your internet connection and try again.');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || 'Invalid login');
+  }
   sessionStorage.setItem(API_TOKEN_KEY, data.token);
   return data.token as string;
 }
