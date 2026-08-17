@@ -130,7 +130,7 @@ function familySavePlugin() {
 export default defineConfig({
   // Custom domain. Until DNS is live, GitHub Pages also serves
   // https://qianwei2025.github.io/Invest_Web/ (temporary).
-  site: 'https://srinvesting.com',
+  site: 'https://sr-investing.com',
   base,
   output: 'static',
   trailingSlash: 'always',
