@@ -2,7 +2,7 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
 import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
-import { journalPath } from '../../../../lib/paths';
+import { journalPath, loginPath } from '../../../../lib/paths';
 
 export function getStaticPaths() {
   return investorStaticPaths();
@@ -26,10 +26,15 @@ const investor = investors[slug];
 </BaseLayout>
 
 <script>
-  import { escapeHtml, fetchJournal, formatShortDate } from '../../../../lib/api';
+  import { deleteJournal, escapeHtml, fetchJournal, formatShortDate } from '../../../../lib/api';
+  import { journalEditPath, journalPath, loginPath } from '../../../../lib/paths';
+  import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
 
   const root = document.querySelector('[data-journal-entry]');
   const id = new URLSearchParams(location.search).get('id');
+  const investor = location.pathname.split('/').filter(Boolean)[1] || '';
+
+  applyFamilyUI();
 
   function block(title: string, body: string) {
     if (!body.trim()) return '';
@@ -44,6 +49,7 @@ const investor = investors[slug];
     }
     try {
       const entry = await fetchJournal(id);
+      const family = isLoggedIn();
       root.innerHTML = `
         <span class="kicker">${escapeHtml(entry.company)} · ${escapeHtml(entry.ticker)}</span>
         <h1>${escapeHtml(entry.title)}</h1>
@@ -52,6 +58,15 @@ const investor = investors[slug];
           <span class="badge">${escapeHtml(entry.action)}</span>
           <span>Confidence ${'★'.repeat(Number(entry.confidence) || 0)}</span>
         </div>
+        ${
+          family
+            ? `<p class="only-family" style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0">
+                <a class="btn btn-ink btn-small" href="${journalEditPath(entry.investor, entry.id)}">Edit</a>
+                <button class="btn btn-small" type="button" data-delete>Delete</button>
+              </p>
+              <p class="muted" data-status></p>`
+            : `<p class="muted"><a href="${loginPath()}">Family log in</a> to edit or delete.</p>`
+        }
         <article class="prose card card-body">
           ${block('My Thesis', entry.thesis)}
           ${block('What Does This Company Actually Do?', entry.does)}
@@ -59,6 +74,18 @@ const investor = investors[slug];
           ${block('What Could Go Wrong?', entry.wrong)}
           ${block('What Did I Learn While Researching It?', entry.learned)}
         </article>`;
+
+      root.querySelector('[data-delete]')?.addEventListener('click', async () => {
+        if (!confirm('Delete this journal entry? This cannot be undone.')) return;
+        const status = root.querySelector<HTMLElement>('[data-status]');
+        if (status) status.textContent = 'Deleting…';
+        try {
+          await deleteJournal(entry.id);
+          window.location.href = `${journalPath(investor)}?deleted=1`;
+        } catch {
+          if (status) status.textContent = 'Could not delete. Log in again and try once more.';
+        }
+      });
     } catch {
       root.innerHTML = `<div class="card empty"><h3>Could not load this entry</h3></div>`;
     }

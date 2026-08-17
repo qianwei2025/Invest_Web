@@ -113,6 +113,26 @@ export async function createJournal(input: JournalInput) {
   return data.item as JournalRecord;
 }
 
+export async function updateJournal(id: string, input: JournalInput) {
+  const data = await parse(
+    await fetch(`${API_BASE}/journals/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(input),
+    }),
+  );
+  return data.item as JournalRecord;
+}
+
+export async function deleteJournal(id: string) {
+  await parse(
+    await fetch(`${API_BASE}/journals/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    }),
+  );
+}
+
 export async function fetchReports(investor: string) {
   const url = new URL(`${API_BASE}/reports`);
   url.searchParams.set('investor', investor);
@@ -134,6 +154,26 @@ export async function createReport(input: ReportInput) {
     }),
   );
   return data.item as ReportRecord;
+}
+
+export async function updateReport(id: string, input: ReportInput) {
+  const data = await parse(
+    await fetch(`${API_BASE}/reports/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(input),
+    }),
+  );
+  return data.item as ReportRecord;
+}
+
+export async function deleteReport(id: string) {
+  await parse(
+    await fetch(`${API_BASE}/reports/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    }),
+  );
 }
 
 export async function fetchHoldings(investor: string) {

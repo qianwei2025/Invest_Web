@@ -27,6 +27,7 @@ const investor = investors[slug];
         <a class="btn btn-gold only-family" href={newReportPath(slug)}>Add a report</a>
       </p>
       <p class="notice" data-saved-banner hidden>Saved. It should appear in the list below.</p>
+      <p class="notice" data-deleted-banner hidden>Deleted.</p>
       <div data-report-list style="margin-top:28px">
         <div class="card empty"><h3>Loading reports…</h3></div>
       </div>
@@ -43,6 +44,9 @@ const investor = investors[slug];
 
   if (new URLSearchParams(location.search).get('saved') === '1') {
     document.querySelector('[data-saved-banner]')?.removeAttribute('hidden');
+  }
+  if (new URLSearchParams(location.search).get('deleted') === '1') {
+    document.querySelector('[data-deleted-banner]')?.removeAttribute('hidden');
   }
 
   async function load() {

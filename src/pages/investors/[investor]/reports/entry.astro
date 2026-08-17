@@ -2,7 +2,7 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
 import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
-import { reportsPath } from '../../../../lib/paths';
+import { loginPath, reportsPath } from '../../../../lib/paths';
 
 export function getStaticPaths() {
   return investorStaticPaths();
@@ -26,10 +26,15 @@ const investor = investors[slug];
 </BaseLayout>
 
 <script>
-  import { escapeHtml, fetchReport, formatShortDate } from '../../../../lib/api';
+  import { deleteReport, escapeHtml, fetchReport, formatShortDate } from '../../../../lib/api';
+  import { loginPath, reportEditPath, reportsPath } from '../../../../lib/paths';
+  import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
 
   const root = document.querySelector('[data-report-entry]');
   const id = new URLSearchParams(location.search).get('id');
+  const investor = location.pathname.split('/').filter(Boolean)[1] || '';
+
+  applyFamilyUI();
 
   function block(title: string, body: string) {
     if (!body.trim()) return '';
@@ -44,10 +49,20 @@ const investor = investors[slug];
     }
     try {
       const entry = await fetchReport(id);
+      const family = isLoggedIn();
       root.innerHTML = `
         <span class="kicker">${escapeHtml(entry.period)}</span>
         <h1>${escapeHtml(entry.title)}</h1>
         <div class="entry-meta"><span>${formatShortDate(entry.date)}</span></div>
+        ${
+          family
+            ? `<p class="only-family" style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0">
+                <a class="btn btn-ink btn-small" href="${reportEditPath(entry.investor, entry.id)}">Edit</a>
+                <button class="btn btn-small" type="button" data-delete>Delete</button>
+              </p>
+              <p class="muted" data-status></p>`
+            : `<p class="muted"><a href="${loginPath()}">Family log in</a> to edit or delete.</p>`
+        }
         <article class="prose card card-body">
           ${block('What did I learn?', entry.learned)}
           ${block('What went well?', entry.wentWell)}
@@ -55,6 +70,18 @@ const investor = investors[slug];
           ${block('Companies I thought about', entry.companies)}
           ${block('What I want to learn next', entry.next)}
         </article>`;
+
+      root.querySelector('[data-delete]')?.addEventListener('click', async () => {
+        if (!confirm('Delete this report? This cannot be undone.')) return;
+        const status = root.querySelector<HTMLElement>('[data-status]');
+        if (status) status.textContent = 'Deleting…';
+        try {
+          await deleteReport(entry.id);
+          window.location.href = `${reportsPath(investor)}?deleted=1`;
+        } catch {
+          if (status) status.textContent = 'Could not delete. Log in again and try once more.';
+        }
+      });
     } catch {
       root.innerHTML = `<div class="card empty"><h3>Could not load this report</h3></div>`;
     }

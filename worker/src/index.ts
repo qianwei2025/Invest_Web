@@ -83,6 +83,14 @@ export default {
         return createJournal(request, env, cors);
       }
 
+      if (request.method === 'PUT' && path.startsWith('/journals/')) {
+        return updateJournal(path.slice('/journals/'.length), request, env, cors);
+      }
+
+      if (request.method === 'DELETE' && path.startsWith('/journals/')) {
+        return deleteJournal(path.slice('/journals/'.length), request, env, cors);
+      }
+
       if (request.method === 'GET' && path === '/reports') {
         return listReports(url, env, cors);
       }
@@ -93,6 +101,14 @@ export default {
 
       if (request.method === 'POST' && path === '/reports') {
         return createReport(request, env, cors);
+      }
+
+      if (request.method === 'PUT' && path.startsWith('/reports/')) {
+        return updateReport(path.slice('/reports/'.length), request, env, cors);
+      }
+
+      if (request.method === 'DELETE' && path.startsWith('/reports/')) {
+        return deleteReport(path.slice('/reports/'.length), request, env, cors);
       }
 
       if (request.method === 'GET' && path === '/holdings') {
@@ -119,7 +135,7 @@ function corsHeaders(env: Env, origin: string): HeadersInit {
   const match = allowed.includes(origin) ? origin : allowed[0] || '*';
   return {
     'Access-Control-Allow-Origin': match,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
@@ -306,6 +322,55 @@ async function createJournal(request: Request, env: Env, cors: HeadersInit) {
   return json({ ok: true, item: mapJournal(item) }, cors, 201);
 }
 
+async function updateJournal(id: string, request: Request, env: Env, cors: HeadersInit) {
+  const denied = await requireAuth(request, env, cors);
+  if (denied) return denied;
+  const existing = await env.DB.prepare(`SELECT id FROM journals WHERE id = ?`).bind(id).first();
+  if (!existing) return json({ ok: false, error: 'Not found' }, cors, 404);
+  const body = (await request.json()) as JournalBody;
+  if (!INVESTORS.has(body.investor)) return json({ ok: false, error: 'Bad investor' }, cors, 400);
+  if (!ACTIONS.has(body.action)) return json({ ok: false, error: 'Bad action' }, cors, 400);
+  if (!body.date || !body.company?.trim() || !body.title?.trim() || !body.thesis?.trim()) {
+    return json({ ok: false, error: 'Missing required fields' }, cors, 400);
+  }
+  const ticker = (body.ticker || slugify(body.company)).toUpperCase();
+  const confidence = Math.min(5, Math.max(1, Number(body.confidence) || 3));
+  await env.DB.prepare(
+    `UPDATE journals SET
+      investor = ?, date = ?, title = ?, company = ?, ticker = ?, action = ?, confidence = ?,
+      thesis = ?, does_text = ?, good = ?, wrong = ?, learned = ?, updated_at = ?
+     WHERE id = ?`,
+  )
+    .bind(
+      body.investor,
+      body.date,
+      body.title.trim(),
+      body.company.trim(),
+      ticker,
+      body.action,
+      confidence,
+      body.thesis.trim(),
+      (body.does || '').trim(),
+      (body.good || '').trim(),
+      (body.wrong || '').trim(),
+      (body.learned || '').trim(),
+      nowIso(),
+      id,
+    )
+    .run();
+  const item = await env.DB.prepare(`SELECT * FROM journals WHERE id = ?`).bind(id).first();
+  return json({ ok: true, item: mapJournal(item) }, cors);
+}
+
+async function deleteJournal(id: string, request: Request, env: Env, cors: HeadersInit) {
+  const denied = await requireAuth(request, env, cors);
+  if (denied) return denied;
+  const existing = await env.DB.prepare(`SELECT id FROM journals WHERE id = ?`).bind(id).first();
+  if (!existing) return json({ ok: false, error: 'Not found' }, cors, 404);
+  await env.DB.prepare(`DELETE FROM journals WHERE id = ?`).bind(id).run();
+  return json({ ok: true }, cors);
+}
+
 async function listReports(url: URL, env: Env, cors: HeadersInit) {
   const investor = url.searchParams.get('investor');
   if (!investor || !INVESTORS.has(investor)) {
@@ -357,6 +422,49 @@ async function createReport(request: Request, env: Env, cors: HeadersInit) {
     .run();
   const item = await env.DB.prepare(`SELECT * FROM reports WHERE id = ?`).bind(id).first();
   return json({ ok: true, item: mapReport(item) }, cors, 201);
+}
+
+async function updateReport(id: string, request: Request, env: Env, cors: HeadersInit) {
+  const denied = await requireAuth(request, env, cors);
+  if (denied) return denied;
+  const existing = await env.DB.prepare(`SELECT id FROM reports WHERE id = ?`).bind(id).first();
+  if (!existing) return json({ ok: false, error: 'Not found' }, cors, 404);
+  const body = (await request.json()) as ReportBody;
+  if (!INVESTORS.has(body.investor)) return json({ ok: false, error: 'Bad investor' }, cors, 400);
+  if (!body.date || !body.period?.trim() || !body.title?.trim() || !body.learned?.trim()) {
+    return json({ ok: false, error: 'Missing required fields' }, cors, 400);
+  }
+  await env.DB.prepare(
+    `UPDATE reports SET
+      investor = ?, date = ?, period = ?, title = ?, learned = ?, went_well = ?,
+      differently = ?, companies = ?, next_text = ?, updated_at = ?
+     WHERE id = ?`,
+  )
+    .bind(
+      body.investor,
+      body.date,
+      body.period.trim(),
+      body.title.trim(),
+      body.learned.trim(),
+      (body.wentWell || '').trim(),
+      (body.differently || '').trim(),
+      (body.companies || '').trim(),
+      (body.next || '').trim(),
+      nowIso(),
+      id,
+    )
+    .run();
+  const item = await env.DB.prepare(`SELECT * FROM reports WHERE id = ?`).bind(id).first();
+  return json({ ok: true, item: mapReport(item) }, cors);
+}
+
+async function deleteReport(id: string, request: Request, env: Env, cors: HeadersInit) {
+  const denied = await requireAuth(request, env, cors);
+  if (denied) return denied;
+  const existing = await env.DB.prepare(`SELECT id FROM reports WHERE id = ?`).bind(id).first();
+  if (!existing) return json({ ok: false, error: 'Not found' }, cors, 404);
+  await env.DB.prepare(`DELETE FROM reports WHERE id = ?`).bind(id).run();
+  return json({ ok: true }, cors);
 }
 
 async function listHoldings(url: URL, env: Env, cors: HeadersInit) {

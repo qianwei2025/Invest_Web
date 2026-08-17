@@ -1,0 +1,140 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
+import { loginPath, reportEntryByIdPath } from '../../../../lib/paths';
+
+export function getStaticPaths() {
+  return investorStaticPaths();
+}
+
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
+---
+
+<BaseLayout title={`Edit report — ${investor.shortName}`}>
+  <section class="section page-hero">
+    <div class="wrap" style="max-width: 760px">
+      <InvestorSubnav slug={slug} />
+      <span class="kicker">{investor.name}</span>
+      <h1>Edit report</h1>
+
+      <div class="card card-body" data-gate hidden>
+        <p>Log in first to edit a report.</p>
+        <p><a class="btn btn-ink" href={loginPath()}>Family log in</a></p>
+      </div>
+
+      <div data-loading class="card empty"><h3>Loading…</h3></div>
+
+      <form class="form card card-body" data-report-form hidden>
+        <input type="hidden" name="investor" value={slug} />
+        <label>
+          Date written
+          <input type="date" name="date" required />
+        </label>
+        <label>
+          Period this report covers
+          <input name="period" required />
+        </label>
+        <label>
+          Title
+          <input name="title" required />
+        </label>
+        <label>
+          What did I learn?
+          <textarea name="learned" required></textarea>
+        </label>
+        <label>
+          What went well?
+          <textarea name="wentWell"></textarea>
+        </label>
+        <label>
+          What would I do differently?
+          <textarea name="differently"></textarea>
+        </label>
+        <label>
+          Companies I thought about
+          <textarea name="companies"></textarea>
+        </label>
+        <label>
+          What I want to learn next
+          <textarea name="next"></textarea>
+        </label>
+        <button class="btn btn-gold" type="submit">Save changes</button>
+        <p class="muted" data-save-status></p>
+      </form>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { fetchReport, updateReport } from '../../../../lib/api';
+  import type { ReportInput } from '../../../../lib/report-file';
+  import { loginPath, reportEntryByIdPath } from '../../../../lib/paths';
+  import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
+
+  const form = document.querySelector<HTMLFormElement>('[data-report-form]');
+  const gate = document.querySelector<HTMLElement>('[data-gate]');
+  const loading = document.querySelector<HTMLElement>('[data-loading]');
+  const status = document.querySelector<HTMLElement>('[data-save-status]');
+  const id = new URLSearchParams(location.search).get('id');
+
+  applyFamilyUI();
+  const allowed = isLoggedIn();
+  if (gate) gate.hidden = allowed;
+  if (!allowed && loading) loading.hidden = true;
+
+  async function load() {
+    if (!allowed || !form || !id) {
+      if (loading) loading.hidden = true;
+      return;
+    }
+    try {
+      const entry = await fetchReport(id);
+      const set = (name: string, value: string) => {
+        const el = form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
+        if (el) el.value = value;
+      };
+      set('investor', entry.investor);
+      set('date', entry.date);
+      set('period', entry.period);
+      set('title', entry.title);
+      set('learned', entry.learned);
+      set('wentWell', entry.wentWell);
+      set('differently', entry.differently);
+      set('companies', entry.companies);
+      set('next', entry.next);
+      if (loading) loading.hidden = true;
+      form.hidden = false;
+    } catch {
+      if (loading) loading.innerHTML = `<h3>Could not load this report</h3><p><a href="${loginPath()}">Log in</a> and try again.</p>`;
+    }
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!isLoggedIn() || !id) return;
+    const data = new FormData(form);
+    const input: ReportInput = {
+      investor: String(data.get('investor')) as ReportInput['investor'],
+      date: String(data.get('date')),
+      period: String(data.get('period')),
+      title: String(data.get('title')),
+      learned: String(data.get('learned')),
+      wentWell: String(data.get('wentWell')),
+      differently: String(data.get('differently')),
+      companies: String(data.get('companies')),
+      next: String(data.get('next')),
+    };
+    if (status) status.textContent = 'Saving…';
+    try {
+      await updateReport(id, input);
+      window.location.href = reportEntryByIdPath(input.investor, id);
+    } catch {
+      if (status) status.textContent = 'Could not save changes. Log in again and try once more.';
+    }
+  });
+
+  load();
+</script>
