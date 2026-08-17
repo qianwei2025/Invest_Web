@@ -1,0 +1,15 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { homePath } from '../lib/paths';
+---
+
+<BaseLayout title="Page not found — Shen Journal">
+  <section class="section page-hero">
+    <div class="wrap">
+      <span class="kicker">404</span>
+      <h1>This page is not in the archive yet.</h1>
+      <p class="muted">It may have been renamed, or it may be a year that has not been written.</p>
+      <p><a class="btn btn-ink" href={homePath()}>Back to the homepage</a></p>
+    </div>
+  </section>
+</BaseLayout>

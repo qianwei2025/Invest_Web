@@ -1,0 +1,54 @@
+---
+import { allInvestors } from '../lib/investors';
+import {
+  aboutPath,
+  comparePath,
+  homePath,
+  imagePath,
+  investorPath,
+  loginPath,
+} from '../lib/paths';
+
+const path = Astro.url.pathname;
+const current = (href: string) => (path === href || path.startsWith(href) && href !== homePath() ? 'page' : undefined);
+---
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href={homePath()}>
+      <img src={imagePath('logo-lantern.png')} alt="" />
+      <span>
+        Shen Journal
+        <small>A long-term learning archive</small>
+      </span>
+    </a>
+    <button class="menu-toggle" type="button" aria-expanded="false" data-menu-button>Menu</button>
+    <nav class="nav" data-nav>
+      <a href={homePath()} aria-current={path === homePath() ? 'page' : undefined}>Home</a>
+      {allInvestors().map((person) => (
+        <a href={investorPath(person.slug)} aria-current={current(investorPath(person.slug))}>
+          {person.shortName}
+        </a>
+      ))}
+      <a href={comparePath()} aria-current={current(comparePath())}>Compare</a>
+      <a href={aboutPath()} aria-current={current(aboutPath())}>About</a>
+      <a class="nav-login" href={loginPath()} data-when="logged-out">Family log in</a>
+      <span class="family-chip" data-when="logged-in" hidden>
+        <button class="text-btn" type="button" data-switch>Switch</button>
+        <button class="text-btn" type="button" data-logout>Log out</button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<script>
+  import { bindFamilyHeader } from '../scripts/family';
+
+  const button = document.querySelector('[data-menu-button]');
+  const nav = document.querySelector('[data-nav]');
+  button?.addEventListener('click', () => {
+    const open = nav?.classList.toggle('open');
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  bindFamilyHeader();
+</script>

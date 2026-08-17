@@ -1,0 +1,138 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { allInvestors } from '../lib/investors';
+import {
+  aboutPath,
+  comparePath,
+  imagePath,
+  investorPath,
+  loginPath,
+} from '../lib/paths';
+
+const people = allInvestors();
+const latest = (await getCollection('journal'))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+  .slice(0, 4);
+---
+
+<BaseLayout title="Shen Journal — Learn how to think">
+  <section class="hero">
+    <img src={imagePath('hero-landscape.jpg')} alt="Terraced forest mountains at golden hour" />
+    <div class="wrap hero-copy">
+      <span class="kicker">A 10–12 year learning archive</span>
+      <h1>Two young investors, learning how to think.</h1>
+      <p class="lede">
+        This website documents Sherman Shen and Roy Shen as they learn about
+        companies, investing, business, technology, and the world around them.
+        The goal is not to beat the market. The goal is to learn how to think.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-gold" href={investorPath('sherman')}>Sherman’s journal</a>
+        <a class="btn btn-ghost" href={investorPath('roy')}>Roy’s journal</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="kicker">The investors</span>
+          <h2>Separate notebooks. Shared questions.</h2>
+          <p class="muted">Each brother keeps his own profile, journals, reports, and portfolio.</p>
+        </div>
+      </div>
+      <div class="grid-2">
+        {people.map((person) => (
+          <article class="card investor-card">
+            <img src={imagePath(person.portrait)} alt={`Portrait of ${person.name}`} />
+            <div class="card-body">
+              <div class="role">{person.role}</div>
+              <h3>{person.name}</h3>
+              <p>{person.tagline}</p>
+              <p class="muted">{person.bio}</p>
+              <div class="tag-row">
+                {person.interests.map((item) => <span class="tag">{item}</span>)}
+              </div>
+              <p style="margin-top:18px">
+                <a class="btn btn-ink" href={investorPath(person.slug)}>Open {person.shortName}’s profile</a>
+              </p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="quote-band">
+    <div class="wrap">
+      <blockquote>
+        “Intelligent people can look at the same company and reach different conclusions. The archive should show the reasoning, not a winner.”
+      </blockquote>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="kicker">What lives here</span>
+          <h2>A research notebook that can grow up with them.</h2>
+        </div>
+      </div>
+      <div class="grid-3">
+        <article class="card card-body">
+          <h3>Journals</h3>
+          <p>One company at a time: thesis, what the business does, risks, Buy / Hold / Sell / Watch, and a later reflection.</p>
+        </article>
+        <article class="card card-body">
+          <h3>Reports</h3>
+          <p>Summaries for any period — a week, a month, a year, or whenever learning piles up. No fixed schedule.</p>
+        </article>
+        <article class="card card-body">
+          <h3>Portfolio</h3>
+          <p>Holdings with buy, current, and sell prices. The site calculates each stock’s return and the total return.</p>
+        </article>
+      </div>
+      <p style="margin-top:28px">
+        <a class="btn btn-ink" href={aboutPath()}>Read the project philosophy</a>
+        <a class="btn" href={comparePath()} style="margin-left:8px">Compare their thinking</a>
+      </p>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="kicker">Latest writing</span>
+          <h2>Newest journal entries</h2>
+        </div>
+      </div>
+      {latest.length === 0 ? (
+        <div class="card empty">
+          <h3>The journals are still blank.</h3>
+          <p class="muted">Sherman and Roy will write the first entries themselves. The archive is waiting.</p>
+          <p><a href={loginPath()}>Family log in to add a journal</a></p>
+        </div>
+      ) : (
+        <div class="journal-list">
+          {latest.map((entry) => (
+            <a class="card journal-card" href={`${investorPath(entry.data.investor)}journal/${entry.id.split('/')[1]}/`}>
+              <div class="date-block">
+                <b>{entry.data.date.getDate()}</b>
+                {entry.data.date.toLocaleString('en-US', { month: 'short' })}
+              </div>
+              <div>
+                <div class="ticker">{entry.data.investor === 'sherman' ? 'Sherman' : 'Roy'} · {entry.data.ticker}</div>
+                <strong>{entry.data.title}</strong>
+              </div>
+              <div class={`action action-${entry.data.action.toLowerCase()}`}>{entry.data.action}</div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>

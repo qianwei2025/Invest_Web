@@ -1,0 +1,58 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import JournalCard from '../../../../components/JournalCard.astro';
+import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
+import { newJournalPath } from '../../../../lib/paths';
+
+export function getStaticPaths() {
+  return investorStaticPaths();
+}
+
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
+let entries = [];
+try {
+  entries = (await getCollection('journal'))
+    .filter((entry) => entry.data.investor === slug)
+    .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+} catch {
+  entries = [];
+}
+---
+
+<BaseLayout title={`${investor.shortName}’s journals — Shen Journal`}>
+  <section class="section page-hero">
+    <div class="wrap">
+      <InvestorSubnav slug={slug} />
+      <span class="kicker">Company journals</span>
+      <h1>{investor.shortName}’s journals</h1>
+      <p class="muted">
+        One entry per company research or decision: thesis, what the business does, risks, and a later reflection on that same idea.
+        For week / month / year summaries, use <strong>Reports</strong>.
+      </p>
+      <p>
+        <a class="btn btn-gold only-family" href={newJournalPath(slug)}>Add a journal</a>
+      </p>
+      <p class="notice" data-saved-banner hidden>Saved. Refresh if the new entry is not in the list yet.</p>
+      {entries.length === 0 ? (
+        <div class="card empty" style="margin-top:28px">
+          <h3>Waiting for the first journal</h3>
+          <p class="muted">Log in, pick {investor.shortName}, and click Add a journal when researching a company.</p>
+        </div>
+      ) : (
+        <div class="journal-list" style="margin-top:28px">
+          {entries.map((entry) => <JournalCard entry={entry} />)}
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  if (new URLSearchParams(window.location.search).get('saved') === '1') {
+    document.querySelector('[data-saved-banner]')?.removeAttribute('hidden');
+  }
+</script>

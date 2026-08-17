@@ -1,0 +1,6 @@
+---
+type Props = { action: 'Buy' | 'Hold' | 'Sell' | 'Watch' };
+const { action } = Astro.props;
+---
+
+<span class={`action action-${action.toLowerCase()}`}>{action}</span>

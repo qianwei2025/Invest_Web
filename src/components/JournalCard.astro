@@ -1,0 +1,28 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { calendarDate, formatDate } from '../lib/format';
+import { journalEntryPath, splitContentId } from '../lib/paths';
+import ActionBadge from './ActionBadge.astro';
+import Confidence from './Confidence.astro';
+
+type Props = { entry: CollectionEntry<'journal'> };
+const { entry } = Astro.props;
+const { investor, slug } = splitContentId(entry.id);
+const date = calendarDate(entry.data.date);
+---
+
+<a class="card journal-card" href={journalEntryPath(investor, slug)}>
+  <div class="date-block">
+    <b>{date.getDate()}</b>
+    {date.toLocaleString('en-US', { month: 'short' })} {date.getFullYear()}
+  </div>
+  <div>
+    <div class="ticker">{entry.data.ticker} · {entry.data.company}</div>
+    <strong>{entry.data.title}</strong>
+    <div class="muted">{formatDate(date)}</div>
+  </div>
+  <div>
+    <ActionBadge action={entry.data.action} />
+    <div style="margin-top:8px"><Confidence level={entry.data.confidence} /></div>
+  </div>
+</a>

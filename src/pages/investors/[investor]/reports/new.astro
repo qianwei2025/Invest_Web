@@ -1,0 +1,161 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
+import { loginPath, reportsPath } from '../../../../lib/paths';
+
+export function getStaticPaths() {
+  return investorStaticPaths();
+}
+
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
+const today = new Date().toISOString().slice(0, 10);
+---
+
+<BaseLayout title={`Add a report — ${investor.shortName}`}>
+  <section class="section page-hero">
+    <div class="wrap" style="max-width: 760px">
+      <InvestorSubnav slug={slug} />
+      <span class="kicker">{investor.name}</span>
+      <h1>Add a report</h1>
+      <p class="muted">
+        Summarize learning for any period you choose — a week, a month, a year, a summer, or “the last few trades.”
+      </p>
+
+      <div class="card card-body" data-gate hidden>
+        <p>Log in and pick {investor.shortName} first. Then you can add a report here.</p>
+        <p><a class="btn btn-ink" href={`${loginPath()}?next=report`}>Family log in</a></p>
+      </div>
+
+      <form class="form card card-body" data-report-form hidden>
+        <input type="hidden" name="investor" value={slug} />
+        <label>
+          Date written
+          <input type="date" name="date" value={today} required />
+        </label>
+        <label>
+          Period this report covers
+          <input
+            name="period"
+            required
+            placeholder="Examples: Week of Aug 10 · August 2026 · 2026 · Summer break"
+          />
+        </label>
+        <label>
+          Title
+          <input name="title" required placeholder="What I learned this month" />
+        </label>
+        <label>
+          What did I learn?
+          <textarea name="learned" required></textarea>
+        </label>
+        <label>
+          What went well?
+          <textarea name="wentWell"></textarea>
+        </label>
+        <label>
+          What would I do differently?
+          <textarea name="differently"></textarea>
+        </label>
+        <label>
+          Companies I thought about
+          <textarea name="companies" placeholder="Optional list"></textarea>
+        </label>
+        <label>
+          What I want to learn next
+          <textarea name="next"></textarea>
+        </label>
+        <button class="btn btn-gold" type="submit">Save report</button>
+        <p class="muted" data-save-status></p>
+      </form>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { GITHUB_REPO, GITHUB_TOKEN_KEY } from '../../../../lib/family-auth';
+  import { buildReportMarkdown, type ReportInput } from '../../../../lib/report-file';
+  import { reportsPath } from '../../../../lib/paths';
+  import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
+
+  const pageInvestor = document.querySelector<HTMLInputElement>('input[name="investor"]')?.value ?? '';
+  const form = document.querySelector<HTMLFormElement>('[data-report-form]');
+  const gate = document.querySelector<HTMLElement>('[data-gate]');
+  const status = document.querySelector<HTMLElement>('[data-save-status]');
+
+  applyFamilyUI();
+  const allowed = isLoggedIn();
+  if (form) form.hidden = !allowed;
+  if (gate) gate.hidden = allowed;
+
+  async function saveLocally(input: ReportInput) {
+    const res = await fetch(`${import.meta.env.BASE_URL}api/report/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error('local');
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'local');
+    return data;
+  }
+
+  async function saveToGithub(input: ReportInput) {
+    const token = localStorage.getItem(GITHUB_TOKEN_KEY);
+    if (!token) throw new Error('github');
+    const file = buildReportMarkdown(input);
+    const content = btoa(unescape(encodeURIComponent(file.text)));
+    const url = `https://api.github.com/repos/${GITHUB_REPO.owner}/${GITHUB_REPO.repo}/contents/${file.relativePath}`;
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+      },
+      body: JSON.stringify({
+        message: `Add report ${file.filename} for ${input.investor}`,
+        content,
+        branch: GITHUB_REPO.branch,
+      }),
+    });
+    if (!res.ok) throw new Error('github');
+    return file;
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!isLoggedIn()) return;
+    const data = new FormData(form);
+    const input: ReportInput = {
+      investor: String(data.get('investor')) as ReportInput['investor'],
+      date: String(data.get('date')),
+      period: String(data.get('period')),
+      title: String(data.get('title')),
+      learned: String(data.get('learned')),
+      wentWell: String(data.get('wentWell')),
+      differently: String(data.get('differently')),
+      companies: String(data.get('companies')),
+      next: String(data.get('next')),
+    };
+    if (status) status.textContent = 'Saving…';
+    try {
+      await saveLocally(input);
+      window.location.href = `${reportsPath(pageInvestor)}?saved=1`;
+      return;
+    } catch {
+      // Local saving only works with npm run dev.
+    }
+    try {
+      await saveToGithub(input);
+      window.location.href = `${reportsPath(pageInvestor)}?saved=1`;
+      return;
+    } catch {
+      if (status) {
+        status.textContent =
+          'Could not save from this page. On the family computer, run npm run dev, log in, and add the report there.';
+      }
+    }
+  });
+</script>

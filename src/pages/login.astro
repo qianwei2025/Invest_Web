@@ -1,0 +1,145 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { allInvestors } from '../lib/investors';
+import { imagePath } from '../lib/paths';
+
+const people = allInvestors();
+---
+
+<BaseLayout title="Family log in — Shen Journal">
+  <section class="section page-hero">
+    <div class="wrap" style="max-width: 720px">
+      <span class="kicker">Family only</span>
+      <h1>Log in, then pick who is writing.</h1>
+      <p class="muted">
+        Anyone can read the journals. Only the family can add one.
+        Public visitors will not see these buttons.
+      </p>
+
+      <div id="login-card" class="card login-box" style="margin-inline: 0">
+        <form class="form" data-login>
+          <label>
+            Email
+            <input type="email" name="email" autocomplete="username" required />
+          </label>
+          <label>
+            Password
+            <input type="password" name="password" autocomplete="current-password" required />
+          </label>
+          <button class="btn btn-ink" type="submit">Log in</button>
+          <p class="muted" data-login-error hidden>That email or password did not match.</p>
+        </form>
+      </div>
+
+      <div id="pick-card" hidden>
+        <h2>Who is writing today?</h2>
+        <div class="grid-2" style="margin-top: 16px">
+          {people.map((person) => (
+            <button class="card pick-card" type="button" data-pick={person.slug}>
+              <img src={imagePath(person.portrait)} alt="" />
+              <div class="card-body">
+                <div class="role">{person.role}</div>
+                <strong>{person.shortName}</strong>
+                <p class="muted">Open my profile, then add a journal.</p>
+              </div>
+            </button>
+          ))}
+        </div>
+        <details class="notice" style="margin-top: 24px">
+          <summary>Parents only: saving from the live website</summary>
+          <p>
+            On the family computer, run <code>npm run dev</code> and add journals there. That writes a Markdown file automatically.
+            If you also want Save to work on GitHub Pages, paste a GitHub token with access to this repo. It stays on this device only.
+          </p>
+          <label>
+            GitHub token
+            <input type="password" data-github-token autocomplete="off" />
+          </label>
+          <p><button class="btn" type="button" data-save-token>Remember token on this device</button></p>
+          <p class="muted" data-token-status></p>
+        </details>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { GITHUB_TOKEN_KEY } from '../lib/family-auth';
+  import {
+    applyFamilyUI,
+    checkPassword,
+    getWriter,
+    isLoggedIn,
+    setLoggedIn,
+    setWriter,
+  } from '../scripts/family';
+  import { investorPath, newHoldingPath, newJournalPath, newReportPath } from '../lib/paths';
+  import type { Writer } from '../lib/family-auth';
+
+  const loginCard = document.getElementById('login-card');
+  const pickCard = document.getElementById('pick-card');
+
+  function showStep() {
+    const inSession = isLoggedIn();
+    loginCard?.toggleAttribute('hidden', inSession);
+    pickCard?.toggleAttribute('hidden', !inSession);
+    applyFamilyUI();
+  }
+
+  showStep();
+
+  document.querySelector('[data-login]')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.target as HTMLFormElement;
+    const data = new FormData(form);
+    const ok = await checkPassword(String(data.get('email') || ''), String(data.get('password') || ''));
+    const error = document.querySelector<HTMLElement>('[data-login-error]');
+    if (!ok) {
+      if (error) error.hidden = false;
+      return;
+    }
+    setLoggedIn(true);
+    showStep();
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const writer = button.dataset.pick as Writer;
+      setWriter(writer);
+      applyFamilyUI();
+      const next = new URLSearchParams(window.location.search).get('next');
+      if (next === 'journal') {
+        window.location.href = newJournalPath(writer);
+        return;
+      }
+      if (next === 'portfolio') {
+        window.location.href = newHoldingPath(writer);
+        return;
+      }
+      if (next === 'report') {
+        window.location.href = newReportPath(writer);
+        return;
+      }
+      window.location.href = investorPath(writer);
+    });
+  });
+
+  document.querySelector('[data-save-token]')?.addEventListener('click', () => {
+    const input = document.querySelector<HTMLInputElement>('[data-github-token]');
+    const note = document.querySelector<HTMLElement>('[data-token-status]');
+    const token = input?.value.trim() ?? '';
+    if (token) localStorage.setItem(GITHUB_TOKEN_KEY, token);
+    else localStorage.removeItem(GITHUB_TOKEN_KEY);
+    if (note) note.textContent = token ? 'Saved on this device.' : 'Token cleared.';
+  });
+  const existing = localStorage.getItem(GITHUB_TOKEN_KEY);
+  const tokenInput = document.querySelector<HTMLInputElement>('[data-github-token]');
+  if (existing && tokenInput) tokenInput.placeholder = 'Token already saved on this device';
+
+  if (isLoggedIn() && getWriter()) {
+    const next = new URLSearchParams(window.location.search).get('next');
+    if (next === 'journal') window.location.href = newJournalPath(getWriter());
+    if (next === 'portfolio') window.location.href = newHoldingPath(getWriter());
+    if (next === 'report') window.location.href = newReportPath(getWriter());
+  }
+</script>

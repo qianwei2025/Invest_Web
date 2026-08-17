@@ -1,0 +1,54 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
+import { formatDate } from '../../../../lib/format';
+import { researchNotePath, splitContentId } from '../../../../lib/paths';
+
+export function getStaticPaths() {
+  return investorStaticPaths();
+}
+
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
+const notes = (await getCollection('research'))
+  .filter((entry) => entry.data.investor === slug)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+---
+
+<BaseLayout title={`${investor.shortName}’s research — Shen Journal`}>
+  <section class="section page-hero">
+    <div class="wrap">
+      <InvestorSubnav slug={slug} />
+      <span class="kicker">Company research</span>
+      <h1>{investor.shortName}’s notes</h1>
+      <p class="muted">These pages can be updated for years. Date the changes. Do not pretend the first draft was the final understanding.</p>
+      {notes.length === 0 ? (
+        <div class="card empty" style="margin-top:28px">
+          <h3>No research notes yet</h3>
+          <p class="muted">{investor.shortName} can add company notes later. Start with a journal entry if this is the first look at a business.</p>
+        </div>
+      ) : (
+        <div class="journal-list" style="margin-top:28px">
+          {notes.map((note) => {
+            const ids = splitContentId(note.id);
+            return (
+              <a class="card journal-card" href={researchNotePath(slug, ids.slug)}>
+                <div class="date-block">
+                  <b>{note.data.ticker}</b>
+                  Updated {formatDate(note.data.updated ?? note.data.date)}
+                </div>
+                <div>
+                  <strong>{note.data.title}</strong>
+                  <div class="muted">{note.data.company}</div>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>

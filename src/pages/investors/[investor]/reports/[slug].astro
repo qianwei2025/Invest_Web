@@ -1,0 +1,41 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import { investors, isInvestorSlug } from '../../../../lib/investors';
+import { formatDate } from '../../../../lib/format';
+import { reportsPath, splitContentId } from '../../../../lib/paths';
+
+export async function getStaticPaths() {
+  try {
+    const entries = await getCollection('reports');
+    return entries.map((entry) => {
+      const { investor, slug } = splitContentId(entry.id);
+      return { params: { investor, slug }, props: { entry } };
+    });
+  } catch {
+    return [];
+  }
+}
+
+const { entry } = Astro.props;
+const { investor: investorSlug } = splitContentId(entry.id);
+if (!isInvestorSlug(investorSlug)) throw new Error('Unknown investor');
+const investor = investors[investorSlug];
+const { Content } = await render(entry);
+---
+
+<BaseLayout title={`${entry.data.title} — ${investor.shortName}`}>
+  <section class="section page-hero">
+    <div class="wrap">
+      <InvestorSubnav slug={investorSlug} />
+      <p><a href={reportsPath(investorSlug)}>← All reports</a></p>
+      <span class="kicker">{entry.data.period}</span>
+      <h1>{entry.data.title}</h1>
+      <p class="muted">Written {formatDate(entry.data.date)}</p>
+      <article class="prose card card-body">
+        <Content />
+      </article>
+    </div>
+  </section>
+</BaseLayout>

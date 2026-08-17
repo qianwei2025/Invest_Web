@@ -1,0 +1,81 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { imagePath, loginPath } from '../lib/paths';
+---
+
+<BaseLayout title="About this project — Shen Journal">
+  <section class="section page-hero">
+    <div class="wrap split-hero">
+      <div>
+        <span class="kicker">Project philosophy</span>
+        <h1>Built for a decade, not a semester.</h1>
+        <p class="lede" style="color: var(--muted)">
+          This is a long-term learning journal. It should still make sense when
+          the authors are teenagers, and it should still be readable when they
+          are adults looking back.
+        </p>
+      </div>
+      <div class="portrait">
+        <img src={imagePath('about-still-life.jpg')} alt="Notebook, pen, and compass on a wooden desk" />
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap prose">
+      <h2>What this site is for</h2>
+      <p>
+        Sherman and Roy are documenting how their thinking, research skills,
+        decision-making, and understanding of businesses evolve. Returns are
+        recorded because they are part of the story. They are not the point.
+      </p>
+      <p>
+        The goal is not to beat the market. The goal is to learn how to think.
+      </p>
+
+      <h2>What should stay theirs</h2>
+      <p>
+        The archive should preserve authentic writing, including mistakes and
+        changes of opinion. A 10-year-old’s simple idea is allowed to sit next
+        to a later, more careful one. We do not tidy history to look clever.
+      </p>
+      <p>AI may help them:</p>
+      <ul>
+        <li>research concepts and financial vocabulary</li>
+        <li>organize information</li>
+        <li>learn programming</li>
+        <li>improve grammar</li>
+      </ul>
+      <p>
+        AI should not invent the investment thesis or the reflection. If a
+        sentence is the reason they bought, held, sold, or watched, it should
+        sound like them.
+      </p>
+
+      <h2>Privacy and safety</h2>
+      <p>
+        The authors are minors. This site does not display brokerage account
+        screenshots, account numbers, balances from real statements, addresses,
+        schools, or other private documents. Holdings shown here are a simple
+        learning ledger, with prices entered by hand.
+      </p>
+      <p>
+        Anyone can read the public pages. Only the family can add journals, reports, and holdings:
+        log in, pick Sherman or Roy, then use Add a journal / Add a report / Add a holding.
+      </p>
+      <p><a href={loginPath()}>Family log in</a></p>
+
+      <h2>How the site is built</h2>
+      <p>
+        Version 1 is a static website. Journals and reports are Markdown files.
+        Portfolios are JSON. There is no database and no cloud account to babysit.
+        GitHub Pages can host it for years at no cost.
+      </p>
+      <p>
+        The boys can start by adding a Markdown file. Later they can change the
+        design, add a live price function, or build the compare view further.
+        The architecture is supposed to be learnable, not impressive.
+      </p>
+    </div>
+  </section>
+</BaseLayout>

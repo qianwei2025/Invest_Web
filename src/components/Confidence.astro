@@ -1,0 +1,10 @@
+---
+type Props = { level: number };
+const { level } = Astro.props;
+---
+
+<span class="confidence" title={`Confidence ${level} of 5`} aria-label={`Confidence ${level} of 5`}>
+  {Array.from({ length: 5 }, (_, i) => (
+    <span class:list={['cube', { on: i < level }]}></span>
+  ))}
+</span>

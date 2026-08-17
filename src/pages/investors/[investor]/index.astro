@@ -1,0 +1,99 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../components/InvestorSubnav.astro';
+import {
+  investors,
+  investorStaticPaths,
+  isInvestorSlug,
+} from '../../../lib/investors';
+import {
+  imagePath,
+  journalPath,
+  newJournalPath,
+  newReportPath,
+  portfolioPath,
+  reportsPath,
+} from '../../../lib/paths';
+
+export function getStaticPaths() {
+  return investorStaticPaths();
+}
+
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) {
+  throw new Error('Unknown investor');
+}
+const investor = investors[slug];
+
+async function safeCount(name: 'journal' | 'reports') {
+  try {
+    return (await getCollection(name)).filter((entry) => entry.data.investor === slug).length;
+  } catch {
+    return 0;
+  }
+}
+
+const journalCount = await safeCount('journal');
+const reportCount = await safeCount('reports');
+---
+
+<BaseLayout title={`${investor.name} — Shen Journal`} description={investor.bio}>
+  <section class="section page-hero">
+    <div class="wrap">
+      <InvestorSubnav slug={slug} />
+      <div class="split-hero" style="margin-top: 24px">
+        <div>
+          <span class="kicker">{investor.role} · started {investor.started}</span>
+          <h1>{investor.name}</h1>
+          <p class="lede" style="color:var(--muted)">{investor.tagline}</p>
+          <p>{investor.bio}</p>
+          <div class="tag-row">
+            {investor.interests.map((item) => <span class="tag">{item}</span>)}
+          </div>
+          <p style="margin-top:22px">
+            <a class="btn btn-gold only-family" href={newJournalPath(slug)}>Add a journal</a>
+            <a class="btn btn-ink only-family" href={newReportPath(slug)}>Add a report</a>
+            <a class="btn" href={portfolioPath(slug)}>Portfolio</a>
+          </p>
+        </div>
+        <div class="portrait">
+          <img src={imagePath(investor.portrait)} alt={`Portrait of ${investor.name}`} />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <div class="grid-3">
+        <article class="card card-body">
+          <h3>Journals</h3>
+          <p class="muted">One company at a time — research, thesis, Buy / Hold / Sell / Watch.</p>
+          <p><strong>{journalCount}</strong> entries</p>
+          <p>
+            <a href={journalPath(slug)}>Open journals</a>
+            <span class="only-family"> · <a href={newJournalPath(slug)}>Add</a></span>
+          </p>
+        </article>
+        <article class="card card-body">
+          <h3>Reports</h3>
+          <p class="muted">Summaries for any period — a week, a month, a year, or whenever learning piles up.</p>
+          <p><strong>{reportCount}</strong> reports</p>
+          <p>
+            <a href={reportsPath(slug)}>Open reports</a>
+            <span class="only-family"> · <a href={newReportPath(slug)}>Add</a></span>
+          </p>
+        </article>
+        <article class="card card-body">
+          <h3>Portfolio</h3>
+          <p class="muted">Holdings with buy / current / sell prices and calculated returns.</p>
+          <p><a href={portfolioPath(slug)}>Open portfolio</a></p>
+        </article>
+      </div>
+      <p class="muted" style="margin-top:28px">
+        Simple rule: new company idea → <strong>Journal</strong>. End of a learning stretch → <strong>Report</strong>.
+      </p>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,19 @@
+---
+import { loginPath } from '../lib/paths';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content={`0;url=${loginPath()}`} />
+    <link rel="canonical" href={loginPath()} />
+    <title>Redirecting…</title>
+  </head>
+  <body>
+    <p><a href={loginPath()}>Continue to family log in</a></p>
+    <script define:vars={{ href: loginPath() }}>
+      window.location.replace(href);
+    </script>
+  </body>
+</html>

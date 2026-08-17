@@ -1,0 +1,55 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import { investors, isInvestorSlug } from '../../../../lib/investors';
+import { formatDate } from '../../../../lib/format';
+import { journalEntryPath, researchPath, splitContentId } from '../../../../lib/paths';
+
+export async function getStaticPaths() {
+  const notes = await getCollection('research');
+  return notes.map((entry) => {
+    const { investor, slug } = splitContentId(entry.id);
+    return { params: { investor, slug }, props: { entry } };
+  });
+}
+
+const { entry } = Astro.props;
+const { investor: investorSlug } = splitContentId(entry.id);
+if (!isInvestorSlug(investorSlug)) throw new Error('Unknown investor');
+const investor = investors[investorSlug];
+const { Content } = await render(entry);
+const related = (await getCollection('journal')).filter(
+  (item) => item.data.investor === investorSlug && item.data.ticker === entry.data.ticker,
+);
+---
+
+<BaseLayout title={`${entry.data.title} — ${investor.shortName}`}>
+  <section class="section page-hero">
+    <div class="wrap">
+      <InvestorSubnav slug={investorSlug} />
+      <p><a href={researchPath(investorSlug)}>← All research notes</a></p>
+      <span class="kicker">{entry.data.ticker}</span>
+      <h1>{entry.data.title}</h1>
+      <p class="muted">
+        Started {formatDate(entry.data.date)}
+        {entry.data.updated && ` · updated ${formatDate(entry.data.updated)}`}
+      </p>
+      <article class="prose card card-body">
+        <Content />
+      </article>
+      {related.length > 0 && (
+        <div style="margin-top:28px">
+          <h2>Related journal entries</h2>
+          <ul>
+            {related.map((item) => (
+              <li>
+                <a href={journalEntryPath(investorSlug, splitContentId(item.id).slug)}>{item.data.title}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>

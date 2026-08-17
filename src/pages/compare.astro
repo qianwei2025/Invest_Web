@@ -1,0 +1,96 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ActionBadge from '../components/ActionBadge.astro';
+import Confidence from '../components/Confidence.astro';
+import { investors } from '../lib/investors';
+import { imagePath, journalEntryPath, splitContentId } from '../lib/paths';
+
+const entries = (await getCollection('journal')).sort(
+  (a, b) => b.data.date.getTime() - a.data.date.getTime(),
+);
+
+const byTicker = new Map<string, typeof entries>();
+for (const entry of entries) {
+  const key = entry.data.ticker;
+  const list = byTicker.get(key) ?? [];
+  list.push(entry);
+  byTicker.set(key, list);
+}
+
+const companies = [...byTicker.entries()]
+  .map(([ticker, list]) => ({
+    ticker,
+    company: list[0].data.company,
+    sherman: list.find((item) => item.data.investor === 'sherman'),
+    roy: list.find((item) => item.data.investor === 'roy'),
+  }))
+  .filter((row) => row.sherman || row.roy);
+---
+
+<BaseLayout
+  title="Compare their thinking — Shen Journal"
+  description="Two independent looks at the same companies. Agreement is not required."
+>
+  <section class="section page-hero">
+    <div class="wrap">
+      <span class="kicker">Same facts. Different minds.</span>
+      <h1>Compare their thinking</h1>
+      <p class="lede" style="color:var(--muted); max-width:70ch">
+        When both brothers write about the same company, we put the latest
+        entries side by side. The point is not to crown a winner. The point is
+        to show that careful people can disagree.
+      </p>
+    </div>
+    <div class="wrap" style="margin-top:24px">
+      <img src={imagePath('compare-lanterns.jpg')} alt="Two lanterns lighting the same map in different colors" style="width:100%; border-radius:24px; max-height:360px; object-fit:cover;" />
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:12px">
+    <div class="wrap">
+      {companies.length === 0 ? (
+        <div class="card empty">
+          <h3>Nothing to compare yet</h3>
+          <p class="muted">When Sherman and Roy both write about the same company, their notes will sit side by side here.</p>
+        </div>
+      ) : (
+        companies.map((row) => (
+        <article style="margin-bottom:36px">
+          <h2>{row.company} <span class="ticker">({row.ticker})</span></h2>
+          <div class="compare-grid">
+            {[row.sherman, row.roy].map((entry, index) => {
+              const person = index === 0 ? investors.sherman : investors.roy;
+              if (!entry) {
+                return (
+                  <div class="card compare-col">
+                    <div class="role">{person.role}</div>
+                    <h3>{person.name}</h3>
+                    <p class="muted">No journal entry yet. That is also information: one brother has not taken a written view.</p>
+                  </div>
+                );
+              }
+              const ids = splitContentId(entry.id);
+              return (
+                <div class="card compare-col">
+                  <div class="role">{person.role}</div>
+                  <h3>{person.name}</h3>
+                  <p>
+                    <ActionBadge action={entry.data.action} />
+                    <span style="margin-left:10px"><Confidence level={entry.data.confidence} /></span>
+                  </p>
+                  <p><strong>{entry.data.title}</strong></p>
+                  <p class="muted">
+                    {entry.data.date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
+                  <p><a href={journalEntryPath(ids.investor, ids.slug)}>Read the full entry</a></p>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+        ))
+      )}
+    </div>
+  </section>
+</BaseLayout>

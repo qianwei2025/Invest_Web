@@ -1,0 +1,182 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
+import { journalPath, loginPath } from '../../../../lib/paths';
+
+export function getStaticPaths() {
+  return investorStaticPaths();
+}
+
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
+const today = new Date().toISOString().slice(0, 10);
+---
+
+<BaseLayout title={`Add a journal — ${investor.shortName}`}>
+  <section class="section page-hero">
+    <div class="wrap" style="max-width: 760px">
+      <InvestorSubnav slug={slug} />
+      <span class="kicker">{investor.name}</span>
+      <h1>Add a journal entry</h1>
+      <p class="muted">Write in your own words. You can come back later and fill in the future reflection.</p>
+
+      <div class="card card-body" data-gate hidden>
+        <p>Log in and pick {investor.shortName} first. Then you can add a journal here.</p>
+        <p><a class="btn btn-ink" href={`${loginPath()}?next=journal`}>Family log in</a></p>
+      </div>
+
+      <form class="form card card-body" data-journal-form hidden>
+        <input type="hidden" name="investor" value={slug} />
+        <label>
+          Date
+          <input type="date" name="date" value={today} required />
+        </label>
+        <label>
+          Company
+          <input name="company" placeholder="Microsoft" required />
+        </label>
+        <label>
+          Ticker
+          <input name="ticker" placeholder="MSFT" />
+        </label>
+        <label>
+          Title
+          <input name="title" placeholder="Why I am watching this company" required />
+        </label>
+        <label>
+          Action
+          <select name="action">
+            <option>Watch</option>
+            <option>Buy</option>
+            <option>Hold</option>
+            <option>Sell</option>
+          </select>
+        </label>
+        <label>
+          Confidence
+          <select name="confidence">
+            <option value="1">1 — just a hunch</option>
+            <option value="2">2 — still shaky</option>
+            <option value="3" selected>3 — some reasons, some gaps</option>
+            <option value="4">4 — I can explain it</option>
+            <option value="5">5 — I would explain it to a friend</option>
+          </select>
+        </label>
+        <label>
+          My thesis
+          <textarea name="thesis" required placeholder="Why am I interested in this company?"></textarea>
+        </label>
+        <label>
+          What does this company actually do?
+          <textarea name="does" required placeholder="Explain the business in my own words."></textarea>
+        </label>
+        <label>
+          Why might this be a good investment?
+          <textarea name="good"></textarea>
+        </label>
+        <label>
+          What could go wrong?
+          <textarea name="wrong"></textarea>
+        </label>
+        <label>
+          What did I learn while researching it?
+          <textarea name="learned"></textarea>
+        </label>
+        <button class="btn btn-gold" type="submit">Save journal entry</button>
+        <p class="muted" data-save-status></p>
+      </form>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { GITHUB_REPO, GITHUB_TOKEN_KEY } from '../../../../lib/family-auth';
+  import { buildJournalMarkdown, type JournalInput } from '../../../../lib/journal-file';
+  import { journalPath } from '../../../../lib/paths';
+  import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
+
+  const pageInvestor = document.querySelector<HTMLInputElement>('input[name="investor"]')?.value ?? '';
+  const form = document.querySelector<HTMLFormElement>('[data-journal-form]');
+  const gate = document.querySelector<HTMLElement>('[data-gate]');
+  const status = document.querySelector<HTMLElement>('[data-save-status]');
+
+  applyFamilyUI();
+  const allowed = isLoggedIn();
+  if (form) form.hidden = !allowed;
+  if (gate) gate.hidden = allowed;
+
+  async function saveLocally(input: JournalInput) {
+    const res = await fetch(`${import.meta.env.BASE_URL}api/journal/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error('local');
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'local');
+    return data;
+  }
+
+  async function saveToGithub(input: JournalInput) {
+    const token = localStorage.getItem(GITHUB_TOKEN_KEY);
+    if (!token) throw new Error('github');
+    const file = buildJournalMarkdown(input);
+    const content = btoa(unescape(encodeURIComponent(file.text)));
+    const url = `https://api.github.com/repos/${GITHUB_REPO.owner}/${GITHUB_REPO.repo}/contents/${file.relativePath}`;
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+      },
+      body: JSON.stringify({
+        message: `Add ${file.filename} for ${input.investor}`,
+        content,
+        branch: GITHUB_REPO.branch,
+      }),
+    });
+    if (!res.ok) throw new Error('github');
+    return file;
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!isLoggedIn()) return;
+    const data = new FormData(form);
+    const input: JournalInput = {
+      investor: String(data.get('investor')) as JournalInput['investor'],
+      date: String(data.get('date')),
+      title: String(data.get('title')),
+      company: String(data.get('company')),
+      ticker: String(data.get('ticker')),
+      action: String(data.get('action')) as JournalInput['action'],
+      confidence: Number(data.get('confidence')),
+      thesis: String(data.get('thesis')),
+      does: String(data.get('does')),
+      good: String(data.get('good')),
+      wrong: String(data.get('wrong')),
+      learned: String(data.get('learned')),
+    };
+
+    if (status) status.textContent = 'Saving…';
+    try {
+      await saveLocally(input);
+      window.location.href = `${journalPath(pageInvestor)}?saved=1`;
+      return;
+    } catch {
+      // Local saving only works with npm run dev. Try GitHub next.
+    }
+    try {
+      await saveToGithub(input);
+      window.location.href = `${journalPath(pageInvestor)}?saved=1`;
+      return;
+    } catch {
+      if (status) {
+        status.textContent =
+          'Could not save from this page. On the family computer, run npm run dev, log in, and add the journal there. The file will appear in src/content/journal/.';
+      }
+    }
+  });
+</script>

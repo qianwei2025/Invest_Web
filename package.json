@@ -1,0 +1,16 @@
+{
+  "name": "invest-journal",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A long-term investment learning journal for Sherman Shen and Roy Shen.",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "^5.13.2"
+  }
+}

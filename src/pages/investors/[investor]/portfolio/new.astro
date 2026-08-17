@@ -1,0 +1,193 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
+import { loginPath, portfolioPath } from '../../../../lib/paths';
+
+export function getStaticPaths() {
+  return investorStaticPaths();
+}
+
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
+const today = new Date().toISOString().slice(0, 10);
+---
+
+<BaseLayout title={`Add a holding — ${investor.shortName}`}>
+  <section class="section page-hero">
+    <div class="wrap" style="max-width: 760px">
+      <InvestorSubnav slug={slug} />
+      <span class="kicker">{investor.name}</span>
+      <h1>Add a holding</h1>
+      <p class="muted">
+        Type the buy price, current price, and shares. If it was sold, add the sell price too.
+        The site calculates the return for this stock and the total portfolio return.
+      </p>
+
+      <div class="card card-body" data-gate hidden>
+        <p>Log in and pick {investor.shortName} first. Then you can add a holding here.</p>
+        <p><a class="btn btn-ink" href={`${loginPath()}?next=portfolio`}>Family log in</a></p>
+      </div>
+
+      <form class="form card card-body" data-holding-form hidden>
+        <input type="hidden" name="investor" value={slug} />
+        <label>
+          Company
+          <input name="company" placeholder="Costco Wholesale" required />
+        </label>
+        <label>
+          Ticker
+          <input name="ticker" placeholder="COST" />
+        </label>
+        <label>
+          Buy date
+          <input type="date" name="purchaseDate" value={today} required />
+        </label>
+        <label>
+          Buy price (per share)
+          <input type="number" name="purchasePrice" min="0" step="0.01" required />
+        </label>
+        <label>
+          Shares
+          <input type="number" name="shares" min="0" step="0.0001" required />
+        </label>
+        <label>
+          Current price (per share)
+          <input type="number" name="currentPrice" min="0" step="0.01" required />
+        </label>
+        <label>
+          Sell price (per share, only if sold)
+          <input type="number" name="sellPrice" min="0" step="0.01" placeholder="Leave blank if still holding" />
+        </label>
+        <label>
+          Sell date (only if sold)
+          <input type="date" name="sellDate" />
+        </label>
+        <label>
+          Original thesis
+          <textarea name="originalThesis" placeholder="Why did I buy this?"></textarea>
+        </label>
+        <label>
+          Related journal slug (optional)
+          <input name="relatedJournal" placeholder="2026-01-12-costco" />
+        </label>
+        <button class="btn btn-gold" type="submit">Save holding</button>
+        <p class="muted" data-save-status></p>
+      </form>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { GITHUB_REPO, GITHUB_TOKEN_KEY } from '../../../../lib/family-auth';
+  import {
+    buildHolding,
+    emptyPortfolio,
+    portfolioRelativePath,
+    type HoldingInput,
+    type PortfolioFile,
+  } from '../../../../lib/portfolio-file';
+  import { portfolioPath } from '../../../../lib/paths';
+  import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
+
+  const pageInvestor = document.querySelector<HTMLInputElement>('input[name="investor"]')?.value ?? '';
+  const form = document.querySelector<HTMLFormElement>('[data-holding-form]');
+  const gate = document.querySelector<HTMLElement>('[data-gate]');
+  const status = document.querySelector<HTMLElement>('[data-save-status]');
+
+  applyFamilyUI();
+  const allowed = isLoggedIn();
+  if (form) form.hidden = !allowed;
+  if (gate) gate.hidden = allowed;
+
+  function toInput(data: FormData): HoldingInput {
+    const sellRaw = String(data.get('sellPrice') || '').trim();
+    return {
+      investor: String(data.get('investor')) as HoldingInput['investor'],
+      company: String(data.get('company')),
+      ticker: String(data.get('ticker')),
+      purchaseDate: String(data.get('purchaseDate')),
+      purchasePrice: Number(data.get('purchasePrice')),
+      currentPrice: Number(data.get('currentPrice')),
+      shares: Number(data.get('shares')),
+      sellPrice: sellRaw === '' ? null : Number(sellRaw),
+      sellDate: String(data.get('sellDate') || '').trim() || null,
+      originalThesis: String(data.get('originalThesis') || ''),
+      relatedJournal: String(data.get('relatedJournal') || ''),
+    };
+  }
+
+  async function saveLocally(input: HoldingInput) {
+    const res = await fetch(`${import.meta.env.BASE_URL}api/holding/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error('local');
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'local');
+    return data;
+  }
+
+  async function saveToGithub(input: HoldingInput) {
+    const token = localStorage.getItem(GITHUB_TOKEN_KEY);
+    if (!token) throw new Error('github');
+    const relativePath = portfolioRelativePath(input.investor);
+    const api = `https://api.github.com/repos/${GITHUB_REPO.owner}/${GITHUB_REPO.repo}/contents/${relativePath}`;
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+    };
+    const existing = await fetch(`${api}?ref=${GITHUB_REPO.branch}`, { headers });
+    let portfolio: PortfolioFile = emptyPortfolio();
+    let sha: string | undefined;
+    if (existing.ok) {
+      const file = await existing.json();
+      sha = file.sha;
+      const decoded = decodeURIComponent(escape(atob(file.content.replace(/\n/g, ''))));
+      portfolio = JSON.parse(decoded);
+    }
+    const holding = buildHolding(input);
+    portfolio.holdings = [...(portfolio.holdings || []), holding];
+    portfolio.priceSource = 'manual';
+    portfolio.priceUpdatedAt = new Date().toISOString().slice(0, 10);
+    const body = {
+      message: `Add ${holding.ticker} holding for ${input.investor}`,
+      content: btoa(unescape(encodeURIComponent(`${JSON.stringify(portfolio, null, 2)}\n`))),
+      branch: GITHUB_REPO.branch,
+      ...(sha ? { sha } : {}),
+    };
+    const res = await fetch(api, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('github');
+    return holding;
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!isLoggedIn()) return;
+    const input = toInput(new FormData(form));
+    if (status) status.textContent = 'Saving…';
+    try {
+      await saveLocally(input);
+      window.location.href = `${portfolioPath(pageInvestor)}?saved=1`;
+      return;
+    } catch {
+      // Local saving only works with npm run dev.
+    }
+    try {
+      await saveToGithub(input);
+      window.location.href = `${portfolioPath(pageInvestor)}?saved=1`;
+      return;
+    } catch {
+      if (status) {
+        status.textContent =
+          'Could not save from this page. On the family computer, run npm run dev, log in, and add the holding there.';
+      }
+    }
+  });
+</script>

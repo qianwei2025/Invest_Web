@@ -1,0 +1,73 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { money, percent, sharesLabel } from '../lib/format';
+import { journalEntryPath } from '../lib/paths';
+import type { ComputedHolding } from '../lib/portfolio';
+
+type Row = ComputedHolding;
+type Props = {
+  investor: string;
+  holdings: Row[];
+  journal: CollectionEntry<'journal'>[];
+};
+
+const { investor, holdings, journal } = Astro.props;
+
+function journalHref(slug: string) {
+  return journalEntryPath(investor, slug);
+}
+---
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Company</th>
+        <th>Ticker</th>
+        <th>Status</th>
+        <th>Buy date</th>
+        <th>Buy price</th>
+        <th>Shares</th>
+        <th>Current price</th>
+        <th>Sell price</th>
+        <th>Cost</th>
+        <th>Value</th>
+        <th>Return</th>
+        <th>Thesis</th>
+        <th>Journal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {holdings.map((row) => (
+        <tr>
+          <td>{row.company}</td>
+          <td class="ticker">{row.ticker}</td>
+          <td>{row.status}</td>
+          <td>{row.purchaseDate}</td>
+          <td class="num">{money(row.purchasePrice)}</td>
+          <td class="num">{sharesLabel(row.shares)}</td>
+          <td class="num">{money(row.currentPrice)}</td>
+          <td class="num">{row.sellPrice == null ? '—' : money(row.sellPrice)}</td>
+          <td class="num">{money(row.originalInvestment)}</td>
+          <td class="num">{money(row.currentValue)}</td>
+          <td class:list={['num', row.gain >= 0 ? 'pos' : 'neg']}>
+            {money(row.gain)} ({percent(row.gainPct)})
+          </td>
+          <td>{row.originalThesis || '—'}</td>
+          <td>
+            {row.relatedJournal.length === 0
+              ? '—'
+              : row.relatedJournal.map((slug) => {
+                  const entry = journal.find((item) => item.id.endsWith(slug));
+                  return (
+                    <div>
+                      <a href={journalHref(slug)}>{entry?.data.title ?? slug}</a>
+                    </div>
+                  );
+                })}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>

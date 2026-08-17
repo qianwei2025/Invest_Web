@@ -1,0 +1,31 @@
+---
+import type { InvestorSlug } from '../lib/investors';
+import {
+  investorPath,
+  journalPath,
+  portfolioPath,
+  reportsPath,
+} from '../lib/paths';
+
+type Props = { slug: InvestorSlug };
+const { slug } = Astro.props;
+const path = Astro.url.pathname;
+
+const links = [
+  { href: investorPath(slug), label: 'Profile' },
+  { href: journalPath(slug), label: 'Journals' },
+  { href: reportsPath(slug), label: 'Reports' },
+  { href: portfolioPath(slug), label: 'Portfolio' },
+];
+---
+
+<nav class="subnav" aria-label="Investor sections">
+  {links.map((link) => (
+    <a
+      href={link.href}
+      aria-current={path === link.href || (link.href !== investorPath(slug) && path.startsWith(link.href)) ? 'page' : undefined}
+    >
+      {link.label}
+    </a>
+  ))}
+</nav>
