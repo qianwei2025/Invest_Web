@@ -49,7 +49,7 @@ export async function familyLogin(email: string, password: string): Promise<stri
   const cleanPassword = password;
   const localOk = await localPasswordOk(cleanEmail, cleanPassword);
   if (!localOk) {
-    return 'That email or password did not match. Use qianwei.shen@gmail.com and password 123456.';
+    return 'That email or password did not match.';
   }
   try {
     await apiLogin(cleanEmail, cleanPassword);
