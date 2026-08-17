@@ -44,6 +44,11 @@ export function journalEntryPath(slug: InvestorSlug | string, entrySlug: string)
   return `${base()}investors/${slug}/journal/${entrySlug}/`;
 }
 
+/** Live D1 journal entry (id from the API). */
+export function journalEntryByIdPath(slug: InvestorSlug | string, id: string) {
+  return `${base()}investors/${slug}/journal/entry/?id=${encodeURIComponent(id)}`;
+}
+
 export function portfolioPath(slug: InvestorSlug | string) {
   return `${base()}investors/${slug}/portfolio/`;
 }
@@ -62,6 +67,11 @@ export function reportsPath(slug: InvestorSlug | string) {
 
 export function reportPath(slug: InvestorSlug | string, reportSlug: string) {
   return `${base()}investors/${slug}/reports/${reportSlug}/`;
+}
+
+/** Live D1 report entry (id from the API). */
+export function reportEntryByIdPath(slug: InvestorSlug | string, id: string) {
+  return `${base()}investors/${slug}/reports/entry/?id=${encodeURIComponent(id)}`;
 }
 
 export function newReportPath(slug: InvestorSlug | string) {

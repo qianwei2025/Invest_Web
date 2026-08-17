@@ -1,0 +1,64 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
+import { reportsPath } from '../../../../lib/paths';
+
+export function getStaticPaths() {
+  return investorStaticPaths();
+}
+
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
+---
+
+<BaseLayout title={`Report — ${investor.shortName}`}>
+  <section class="section page-hero">
+    <div class="wrap">
+      <InvestorSubnav slug={slug} />
+      <p><a href={reportsPath(slug)}>← All reports</a></p>
+      <div data-report-entry>
+        <div class="card empty"><h3>Loading report…</h3></div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { escapeHtml, fetchReport, formatShortDate } from '../../../../lib/api';
+
+  const root = document.querySelector('[data-report-entry]');
+  const id = new URLSearchParams(location.search).get('id');
+
+  function block(title: string, body: string) {
+    if (!body.trim()) return '';
+    return `<h2>${escapeHtml(title)}</h2><p>${escapeHtml(body).replace(/\n/g, '<br>')}</p>`;
+  }
+
+  async function load() {
+    if (!root) return;
+    if (!id) {
+      root.innerHTML = `<div class="card empty"><h3>Missing report id</h3></div>`;
+      return;
+    }
+    try {
+      const entry = await fetchReport(id);
+      root.innerHTML = `
+        <span class="kicker">${escapeHtml(entry.period)}</span>
+        <h1>${escapeHtml(entry.title)}</h1>
+        <div class="entry-meta"><span>${formatShortDate(entry.date)}</span></div>
+        <article class="prose card card-body">
+          ${block('What did I learn?', entry.learned)}
+          ${block('What went well?', entry.wentWell)}
+          ${block('What would I do differently?', entry.differently)}
+          ${block('Companies I thought about', entry.companies)}
+          ${block('What I want to learn next', entry.next)}
+        </article>`;
+    } catch {
+      root.innerHTML = `<div class="card empty"><h3>Could not load this report</h3></div>`;
+    }
+  }
+
+  load();
+</script>

@@ -1,0 +1,68 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
+import { journalPath } from '../../../../lib/paths';
+
+export function getStaticPaths() {
+  return investorStaticPaths();
+}
+
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
+---
+
+<BaseLayout title={`Journal entry — ${investor.shortName}`}>
+  <section class="section page-hero">
+    <div class="wrap">
+      <InvestorSubnav slug={slug} />
+      <p><a href={journalPath(slug)}>← All journal entries</a></p>
+      <div data-journal-entry>
+        <div class="card empty"><h3>Loading entry…</h3></div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { escapeHtml, fetchJournal, formatShortDate } from '../../../../lib/api';
+
+  const root = document.querySelector('[data-journal-entry]');
+  const id = new URLSearchParams(location.search).get('id');
+
+  function block(title: string, body: string) {
+    if (!body.trim()) return '';
+    return `<h2>${escapeHtml(title)}</h2><p>${escapeHtml(body).replace(/\n/g, '<br>')}</p>`;
+  }
+
+  async function load() {
+    if (!root) return;
+    if (!id) {
+      root.innerHTML = `<div class="card empty"><h3>Missing entry id</h3></div>`;
+      return;
+    }
+    try {
+      const entry = await fetchJournal(id);
+      root.innerHTML = `
+        <span class="kicker">${escapeHtml(entry.company)} · ${escapeHtml(entry.ticker)}</span>
+        <h1>${escapeHtml(entry.title)}</h1>
+        <div class="entry-meta">
+          <span>${formatShortDate(entry.date)}</span>
+          <span class="badge">${escapeHtml(entry.action)}</span>
+          <span>Confidence ${'★'.repeat(Number(entry.confidence) || 0)}</span>
+        </div>
+        <article class="prose card card-body">
+          ${block('My Thesis', entry.thesis)}
+          ${block('What Does This Company Actually Do?', entry.does)}
+          ${block('Why Might This Be a Good Investment?', entry.good)}
+          ${block('What Could Go Wrong?', entry.wrong)}
+          ${block('What Did I Learn While Researching It?', entry.learned)}
+        </article>`;
+    } catch {
+      root.innerHTML = `<div class="card empty"><h3>Could not load this entry</h3></div>`;
+    }
+  }
+
+  load();
+</script>

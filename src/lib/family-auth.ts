@@ -4,13 +4,6 @@ export const AUTH_PASSWORD_SHA256 =
 
 export const AUTH_KEY = 'shen-journal-auth';
 export const WRITER_KEY = 'shen-journal-writer';
-export const GITHUB_TOKEN_KEY = 'shen-github-token';
 export const DRAFTS_KEY = 'shen-journal-drafts';
-
-export const GITHUB_REPO = {
-  owner: 'qianwei2025',
-  repo: 'Invest_Web',
-  branch: 'main',
-};
 
 export type Writer = 'sherman' | 'roy';

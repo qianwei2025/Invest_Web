@@ -1,5 +1,4 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import InvestorSubnav from '../../../components/InvestorSubnav.astro';
 import {
@@ -25,17 +24,6 @@ if (!isInvestorSlug(slug)) {
   throw new Error('Unknown investor');
 }
 const investor = investors[slug];
-
-async function safeCount(name: 'journal' | 'reports') {
-  try {
-    return (await getCollection(name)).filter((entry) => entry.data.investor === slug).length;
-  } catch {
-    return 0;
-  }
-}
-
-const journalCount = await safeCount('journal');
-const reportCount = await safeCount('reports');
 ---
 
 <BaseLayout title={`${investor.name} — Shen Journal`} description={investor.bio}>
@@ -70,7 +58,7 @@ const reportCount = await safeCount('reports');
         <article class="card card-body">
           <h3>Journals</h3>
           <p class="muted">One company at a time — research, thesis, Buy / Hold / Sell / Watch.</p>
-          <p><strong>{journalCount}</strong> entries</p>
+          <p><strong data-journal-count>—</strong> entries</p>
           <p>
             <a href={journalPath(slug)}>Open journals</a>
             <span class="only-family"> · <a href={newJournalPath(slug)}>Add</a></span>
@@ -79,7 +67,7 @@ const reportCount = await safeCount('reports');
         <article class="card card-body">
           <h3>Reports</h3>
           <p class="muted">Summaries for any period — a week, a month, a year, or whenever learning piles up.</p>
-          <p><strong>{reportCount}</strong> reports</p>
+          <p><strong data-report-count>—</strong> reports</p>
           <p>
             <a href={reportsPath(slug)}>Open reports</a>
             <span class="only-family"> · <a href={newReportPath(slug)}>Add</a></span>
@@ -97,3 +85,22 @@ const reportCount = await safeCount('reports');
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  import { fetchJournals, fetchReports } from '../../../lib/api';
+
+  const investor = location.pathname.split('/').filter(Boolean)[1] || '';
+  Promise.all([fetchJournals(investor), fetchReports(investor)])
+    .then(([journals, reports]) => {
+      const j = document.querySelector('[data-journal-count]');
+      const r = document.querySelector('[data-report-count]');
+      if (j) j.textContent = String(journals.length);
+      if (r) r.textContent = String(reports.length);
+    })
+    .catch(() => {
+      const j = document.querySelector('[data-journal-count]');
+      const r = document.querySelector('[data-report-count]');
+      if (j) j.textContent = '0';
+      if (r) r.textContent = '0';
+    });
+</script>

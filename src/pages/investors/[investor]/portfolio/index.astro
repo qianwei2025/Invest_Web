@@ -1,12 +1,8 @@
 ---
-import { getCollection, type CollectionEntry } from 'astro:content';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
-import HoldingTable from '../../../../components/HoldingTable.astro';
 import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
-import { money, percent } from '../../../../lib/format';
-import { computePortfolio } from '../../../../lib/portfolio';
-import { journalPath, loginPath, newHoldingPath } from '../../../../lib/paths';
+import { loginPath, newHoldingPath } from '../../../../lib/paths';
 
 export function getStaticPaths() {
   return investorStaticPaths();
@@ -15,19 +11,6 @@ export function getStaticPaths() {
 const slug = Astro.params.investor as string;
 if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
 const investor = investors[slug];
-const portfolio = computePortfolio(slug);
-let journal: CollectionEntry<'journal'>[] = [];
-try {
-  journal = (await getCollection('journal')).filter((entry) => entry.data.investor === slug);
-} catch {
-  journal = [];
-}
-const heldTickers = new Set(portfolio.holdings.map((row) => row.ticker));
-const watchlist = [...new Map(
-  journal
-    .filter((entry) => entry.data.action === 'Watch' && !heldTickers.has(entry.data.ticker))
-    .map((entry) => [entry.data.ticker, entry] as const),
-).values()];
 ---
 
 <BaseLayout title={`${investor.shortName}’s portfolio — Shen Journal`}>
@@ -39,68 +22,108 @@ const watchlist = [...new Map(
       <p class="muted">
         A simple learning ledger. Enter buy price, current price, shares, and sell price if sold.
         The site calculates each stock’s return and the total return.
-        {portfolio.priceUpdatedAt && ` Last update: ${portfolio.priceUpdatedAt}.`}
       </p>
       <p>
         <a class="btn btn-gold only-family" href={newHoldingPath(slug)}>Add a holding</a>
         <a class="btn" href={`${loginPath()}?next=portfolio`} data-when="logged-out">Family log in</a>
       </p>
-      <p class="notice" data-saved-banner hidden>Saved. Refresh if the new holding is not in the list yet.</p>
+      <p class="notice" data-saved-banner hidden>Saved. It should appear in the list below.</p>
       <p class="notice">
         It is fine to show holdings here. Do not upload brokerage screenshots or account numbers.
       </p>
 
-      <div class="stat-row" style="margin-top:22px">
-        <div class="stat"><span>Total invested</span><strong>{money(portfolio.invested)}</strong></div>
-        <div class="stat"><span>Total value</span><strong>{money(portfolio.value)}</strong></div>
-        <div class="stat">
-          <span>Total return</span>
-          <strong class={portfolio.gain >= 0 ? 'pos' : 'neg'}>{money(portfolio.gain)}</strong>
-        </div>
-        <div class="stat">
-          <span>Total return %</span>
-          <strong class={portfolio.gainPct >= 0 ? 'pos' : 'neg'}>{percent(portfolio.gainPct)}</strong>
-        </div>
+      <div class="stat-row" style="margin-top:22px" data-stats>
+        <div class="stat"><span>Total invested</span><strong>—</strong></div>
+        <div class="stat"><span>Total value</span><strong>—</strong></div>
+        <div class="stat"><span>Total return</span><strong>—</strong></div>
+        <div class="stat"><span>Total return %</span><strong>—</strong></div>
       </div>
 
-      {portfolio.holdings.length === 0 ? (
-        <div class="card empty" style="margin-top:22px">
-          <h3>No holdings yet</h3>
-          <p class="muted">
-            Log in, pick {investor.shortName}, then click <strong>Add a holding</strong>.
-            Fill in buy price, current price, shares, and sell price if it was sold.
-          </p>
-        </div>
-      ) : (
-        <>
-          <p class="muted">
-            {portfolio.openCount} open · {portfolio.soldCount} sold
-          </p>
-          <HoldingTable investor={slug} holdings={portfolio.holdings} journal={journal} />
-        </>
-      )}
-
-      {watchlist.length > 0 && (
-        <div style="margin-top:36px">
-          <h2>Watching</h2>
-          <p class="muted">Companies written about as Watch, and not yet held.</p>
-          <ul>
-            {watchlist.map((entry) => (
-              <li>
-                <strong>{entry.data.company}</strong>
-                <span class="ticker"> {entry.data.ticker}</span>
-                — <a href={journalPath(slug) + entry.id.split('/')[1] + '/'}>{entry.data.title}</a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div data-holdings style="margin-top:22px">
+        <div class="card empty"><h3>Loading holdings…</h3></div>
+      </div>
     </div>
   </section>
 </BaseLayout>
 
 <script>
-  if (new URLSearchParams(window.location.search).get('saved') === '1') {
+  import { escapeHtml, fetchHoldings, money, percent } from '../../../../lib/api';
+  import type { HoldingRecordLive } from '../../../../lib/api';
+
+  const investor = location.pathname.split('/').filter(Boolean)[1] || '';
+  const root = document.querySelector('[data-holdings]');
+  const stats = document.querySelector('[data-stats]');
+
+  if (new URLSearchParams(location.search).get('saved') === '1') {
     document.querySelector('[data-saved-banner]')?.removeAttribute('hidden');
   }
+
+  function compute(holdings: HoldingRecordLive[]) {
+    const rows = holdings.map((holding) => {
+      const sold = holding.sellPrice !== null && holding.sellPrice !== undefined;
+      const mark = sold ? Number(holding.sellPrice) : Number(holding.currentPrice);
+      const originalInvestment = Number(holding.purchasePrice) * Number(holding.shares);
+      const currentValue = mark * Number(holding.shares);
+      const gain = currentValue - originalInvestment;
+      const gainPct = originalInvestment ? (gain / originalInvestment) * 100 : 0;
+      return { ...holding, sold, mark, originalInvestment, currentValue, gain, gainPct };
+    });
+    const invested = rows.reduce((sum, row) => sum + row.originalInvestment, 0);
+    const value = rows.reduce((sum, row) => sum + row.currentValue, 0);
+    const gain = rows.reduce((sum, row) => sum + row.gain, 0);
+    const gainPct = invested ? (gain / invested) * 100 : 0;
+    return {
+      rows,
+      invested,
+      value,
+      gain,
+      gainPct,
+      openCount: rows.filter((row) => !row.sold).length,
+      soldCount: rows.filter((row) => row.sold).length,
+    };
+  }
+
+  async function load() {
+    if (!root || !stats) return;
+    try {
+      const holdings = await fetchHoldings(investor);
+      const portfolio = compute(holdings);
+      stats.innerHTML = `
+        <div class="stat"><span>Total invested</span><strong>${money(portfolio.invested)}</strong></div>
+        <div class="stat"><span>Total value</span><strong>${money(portfolio.value)}</strong></div>
+        <div class="stat"><span>Total return</span><strong class="${portfolio.gain >= 0 ? 'pos' : 'neg'}">${money(portfolio.gain)}</strong></div>
+        <div class="stat"><span>Total return %</span><strong class="${portfolio.gainPct >= 0 ? 'pos' : 'neg'}">${percent(portfolio.gainPct)}</strong></div>`;
+
+      if (!portfolio.rows.length) {
+        root.innerHTML = `<div class="card empty"><h3>No holdings yet</h3><p class="muted">Log in, then click Add a holding.</p></div>`;
+        return;
+      }
+
+      root.innerHTML = `<p class="muted">${portfolio.openCount} open · ${portfolio.soldCount} sold</p>
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr>
+            <th>Company</th><th>Buy</th><th>Mark</th><th>Shares</th><th>Invested</th><th>Value</th><th>Return</th>
+          </tr></thead>
+          <tbody>
+            ${portfolio.rows
+              .map(
+                (row) => `<tr>
+              <td><strong>${escapeHtml(row.ticker)}</strong><div class="muted">${escapeHtml(row.company)}</div></td>
+              <td>${money(Number(row.purchasePrice))}<div class="muted">${escapeHtml(row.purchaseDate)}</div></td>
+              <td>${money(row.mark)}${row.sold ? '<div class="muted">Sold</div>' : ''}</td>
+              <td>${Number(row.shares)}</td>
+              <td>${money(row.originalInvestment)}</td>
+              <td>${money(row.currentValue)}</td>
+              <td class="${row.gain >= 0 ? 'pos' : 'neg'}">${money(row.gain)}<div>${percent(row.gainPct)}</div></td>
+            </tr>`,
+              )
+              .join('')}
+          </tbody>
+        </table></div>`;
+    } catch {
+      root.innerHTML = `<div class="card empty"><h3>Could not load holdings</h3></div>`;
+    }
+  }
+
+  load();
 </script>

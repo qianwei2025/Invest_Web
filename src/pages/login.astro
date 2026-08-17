@@ -13,7 +13,7 @@ const people = allInvestors();
       <h1>Log in, then pick who is writing.</h1>
       <p class="muted">
         Anyone can read the journals. Only the family can add one.
-        Public visitors will not see these buttons.
+        After you log in, Save on the live website stores entries in the family database.
       </p>
 
       <div id="login-card" class="card login-box" style="margin-inline: 0">
@@ -27,7 +27,7 @@ const people = allInvestors();
             <input type="password" name="password" autocomplete="current-password" required />
           </label>
           <button class="btn btn-ink" type="submit">Log in</button>
-          <p class="muted" data-login-error hidden>That email or password did not match.</p>
+          <p class="muted" data-login-error hidden>That email or password did not match, or the save service is unavailable.</p>
         </form>
       </div>
 
@@ -45,26 +45,12 @@ const people = allInvestors();
             </button>
           ))}
         </div>
-        <details class="notice" style="margin-top: 24px">
-          <summary>Parents only: saving from the live website</summary>
-          <p>
-            On the family computer, run <code>npm run dev</code> and add journals there. That writes a Markdown file automatically.
-            If you also want Save to work on GitHub Pages, paste a GitHub token with access to this repo. It stays on this device only.
-          </p>
-          <label>
-            GitHub token
-            <input type="password" data-github-token autocomplete="off" />
-          </label>
-          <p><button class="btn" type="button" data-save-token>Remember token on this device</button></p>
-          <p class="muted" data-token-status></p>
-        </details>
       </div>
     </div>
   </section>
 </BaseLayout>
 
 <script>
-  import { GITHUB_TOKEN_KEY } from '../lib/family-auth';
   import {
     applyFamilyUI,
     checkPassword,
@@ -92,7 +78,10 @@ const people = allInvestors();
     event.preventDefault();
     const form = event.target as HTMLFormElement;
     const data = new FormData(form);
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.setAttribute('disabled', 'true');
     const ok = await checkPassword(String(data.get('email') || ''), String(data.get('password') || ''));
+    if (button) button.removeAttribute('disabled');
     const error = document.querySelector<HTMLElement>('[data-login-error]');
     if (!ok) {
       if (error) error.hidden = false;
@@ -123,18 +112,6 @@ const people = allInvestors();
       window.location.href = investorPath(writer);
     });
   });
-
-  document.querySelector('[data-save-token]')?.addEventListener('click', () => {
-    const input = document.querySelector<HTMLInputElement>('[data-github-token]');
-    const note = document.querySelector<HTMLElement>('[data-token-status]');
-    const token = input?.value.trim() ?? '';
-    if (token) localStorage.setItem(GITHUB_TOKEN_KEY, token);
-    else localStorage.removeItem(GITHUB_TOKEN_KEY);
-    if (note) note.textContent = token ? 'Saved on this device.' : 'Token cleared.';
-  });
-  const existing = localStorage.getItem(GITHUB_TOKEN_KEY);
-  const tokenInput = document.querySelector<HTMLInputElement>('[data-github-token]');
-  if (existing && tokenInput) tokenInput.placeholder = 'Token already saved on this device';
 
   if (isLoggedIn() && getWriter()) {
     const next = new URLSearchParams(window.location.search).get('next');

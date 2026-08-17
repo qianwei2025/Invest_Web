@@ -1,8 +1,6 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
-import JournalCard from '../../../../components/JournalCard.astro';
 import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
 import { newJournalPath } from '../../../../lib/paths';
 
@@ -13,14 +11,6 @@ export function getStaticPaths() {
 const slug = Astro.params.investor as string;
 if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
 const investor = investors[slug];
-let entries = [];
-try {
-  entries = (await getCollection('journal'))
-    .filter((entry) => entry.data.investor === slug)
-    .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
-} catch {
-  entries = [];
-}
 ---
 
 <BaseLayout title={`${investor.shortName}’s journals — Shen Journal`}>
@@ -36,23 +26,61 @@ try {
       <p>
         <a class="btn btn-gold only-family" href={newJournalPath(slug)}>Add a journal</a>
       </p>
-      <p class="notice" data-saved-banner hidden>Saved. Refresh if the new entry is not in the list yet.</p>
-      {entries.length === 0 ? (
-        <div class="card empty" style="margin-top:28px">
-          <h3>Waiting for the first journal</h3>
-          <p class="muted">Log in, pick {investor.shortName}, and click Add a journal when researching a company.</p>
+      <p class="notice" data-saved-banner hidden>Saved. It should appear in the list below.</p>
+      <div data-journal-list style="margin-top:28px">
+        <div class="card empty">
+          <h3>Loading journals…</h3>
         </div>
-      ) : (
-        <div class="journal-list" style="margin-top:28px">
-          {entries.map((entry) => <JournalCard entry={entry} />)}
-        </div>
-      )}
+      </div>
     </div>
   </section>
 </BaseLayout>
 
 <script>
-  if (new URLSearchParams(window.location.search).get('saved') === '1') {
+  import { escapeHtml, fetchJournals, formatShortDate } from '../../../../lib/api';
+  import { journalEntryByIdPath } from '../../../../lib/paths';
+
+  const investor = location.pathname.split('/').filter(Boolean)[1] || '';
+  const root = document.querySelector('[data-journal-list]');
+
+  if (new URLSearchParams(location.search).get('saved') === '1') {
     document.querySelector('[data-saved-banner]')?.removeAttribute('hidden');
   }
+
+  function stars(level: number) {
+    return '★'.repeat(level) + '☆'.repeat(Math.max(0, 5 - level));
+  }
+
+  async function load() {
+    if (!root) return;
+    try {
+      const items = await fetchJournals(investor);
+      if (!items.length) {
+        root.innerHTML = `<div class="card empty"><h3>Waiting for the first journal</h3><p class="muted">Log in, pick this investor, and click Add a journal when researching a company.</p></div>`;
+        return;
+      }
+      root.innerHTML = `<div class="journal-list">${items
+        .map((entry) => {
+          const href = journalEntryByIdPath(entry.investor, entry.id);
+          const date = new Date(`${entry.date}T12:00:00`);
+          return `<a class="card journal-card" href="${href}">
+            <div class="date-block"><b>${date.getDate()}</b>${date.toLocaleString('en-US', { month: 'short' })} ${date.getFullYear()}</div>
+            <div>
+              <div class="ticker">${escapeHtml(entry.ticker)} · ${escapeHtml(entry.company)}</div>
+              <strong>${escapeHtml(entry.title)}</strong>
+              <div class="muted">${formatShortDate(entry.date)}</div>
+            </div>
+            <div>
+              <span class="badge">${escapeHtml(entry.action)}</span>
+              <div style="margin-top:8px">${stars(Number(entry.confidence) || 0)}</div>
+            </div>
+          </a>`;
+        })
+        .join('')}</div>`;
+    } catch {
+      root.innerHTML = `<div class="card empty"><h3>Could not load journals</h3><p class="muted">Check your connection and refresh.</p></div>`;
+    }
+  }
+
+  load();
 </script>

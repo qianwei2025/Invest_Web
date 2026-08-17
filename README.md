@@ -180,16 +180,40 @@ Optional later costs, only if you choose them: a custom domain (~$10–20/year) 
 - **Public:** homepage, profiles, journals, reports, portfolios, compare.
 - **Family:** adding journals, reports, and holdings after log in.
 
-Anyone can read the public pages. To add writing:
+Anyone can read the public pages. To add writing on **https://sr-investing.com**:
 
-1. Run `npm run dev` on the family computer.
-2. Click **Family log in**.
+1. Click **Family log in**.
+2. Use the family email and password.
 3. Pick Sherman or Roy.
-4. Click **Add a journal**, **Add a report**, or **Add a holding**.
+4. Click **Add a journal**, **Add a report**, or **Add a holding**, then **Save**.
+
+Entries are stored in a Cloudflare D1 database via `api.sr-investing.com`. They show up on the live site right away (no git push required for writing).
 
 Simple rule: new company idea → **Journal**. End of a learning stretch → **Report**.
 
-The login is only a simple gate. It is **not** brokerage security. Change the helper password in `src/lib/family-auth.ts` before a wide launch, and never reuse it on email or financial accounts.
+The login is only a simple gate. It is **not** brokerage security. Never reuse the family password on email or financial accounts.
+
+## API (Cloudflare Worker + D1)
+
+The save/read API lives in `worker/`. Deploy steps (one-time):
+
+```bash
+npx wrangler login
+npx wrangler d1 create sr-investing
+# put the database_id into worker/wrangler.toml
+npm run api:db
+npx wrangler secret put SESSION_SECRET --config worker/wrangler.toml
+npm run api:deploy
+```
+
+Then in Cloudflare DNS for `sr-investing.com`, add:
+
+| Type | Name | Content | Proxy |
+| --- | --- | --- | --- |
+| CNAME | `api` | `sr-investing-api.<your-subdomain>.workers.dev` | DNS only |
+
+Or attach custom domain `api.sr-investing.com` to the Worker in the Cloudflare dashboard.
+
 
 ## Starting empty
 

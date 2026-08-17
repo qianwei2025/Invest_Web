@@ -1,19 +1,9 @@
-import {
-  AUTH_EMAIL,
-  AUTH_KEY,
-  AUTH_PASSWORD_SHA256,
-  WRITER_KEY,
-  type Writer,
-} from '../lib/family-auth';
+import { AUTH_KEY, WRITER_KEY, type Writer } from '../lib/family-auth';
+import { apiLogin, clearApiToken, hasApiToken } from '../lib/api';
 import { loginPath } from '../lib/paths';
 
-export async function sha256(text: string) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
 export function isLoggedIn() {
-  return sessionStorage.getItem(AUTH_KEY) === 'ok';
+  return sessionStorage.getItem(AUTH_KEY) === 'ok' && hasApiToken();
 }
 
 export function getWriter(): Writer | '' {
@@ -26,6 +16,7 @@ export function setLoggedIn(on: boolean) {
   else {
     sessionStorage.removeItem(AUTH_KEY);
     sessionStorage.removeItem(WRITER_KEY);
+    clearApiToken();
   }
 }
 
@@ -33,9 +24,14 @@ export function setWriter(writer: Writer) {
   sessionStorage.setItem(WRITER_KEY, writer);
 }
 
+/** Validates against the live API and stores a session token for Save. */
 export async function checkPassword(email: string, password: string) {
-  const hash = await sha256(password);
-  return email.trim().toLowerCase() === AUTH_EMAIL && hash === AUTH_PASSWORD_SHA256;
+  try {
+    await apiLogin(email.trim().toLowerCase(), password);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function applyFamilyUI() {

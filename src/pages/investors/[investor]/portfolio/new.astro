@@ -68,10 +68,6 @@ const today = new Date().toISOString().slice(0, 10);
           Original thesis
           <textarea name="originalThesis" placeholder="Why did I buy this?"></textarea>
         </label>
-        <label>
-          Related journal slug (optional)
-          <input name="relatedJournal" placeholder="2026-01-12-costco" />
-        </label>
         <button class="btn btn-gold" type="submit">Save holding</button>
         <p class="muted" data-save-status></p>
       </form>
@@ -80,14 +76,8 @@ const today = new Date().toISOString().slice(0, 10);
 </BaseLayout>
 
 <script>
-  import { GITHUB_REPO, GITHUB_TOKEN_KEY } from '../../../../lib/family-auth';
-  import {
-    buildHolding,
-    emptyPortfolio,
-    portfolioRelativePath,
-    type HoldingInput,
-    type PortfolioFile,
-  } from '../../../../lib/portfolio-file';
+  import { createHolding } from '../../../../lib/api';
+  import type { HoldingInput } from '../../../../lib/portfolio-file';
   import { portfolioPath } from '../../../../lib/paths';
   import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
 
@@ -101,9 +91,12 @@ const today = new Date().toISOString().slice(0, 10);
   if (form) form.hidden = !allowed;
   if (gate) gate.hidden = allowed;
 
-  function toInput(data: FormData): HoldingInput {
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!isLoggedIn()) return;
+    const data = new FormData(form);
     const sellRaw = String(data.get('sellPrice') || '').trim();
-    return {
+    const input: HoldingInput = {
       investor: String(data.get('investor')) as HoldingInput['investor'],
       company: String(data.get('company')),
       ticker: String(data.get('ticker')),
@@ -114,80 +107,13 @@ const today = new Date().toISOString().slice(0, 10);
       sellPrice: sellRaw === '' ? null : Number(sellRaw),
       sellDate: String(data.get('sellDate') || '').trim() || null,
       originalThesis: String(data.get('originalThesis') || ''),
-      relatedJournal: String(data.get('relatedJournal') || ''),
     };
-  }
-
-  async function saveLocally(input: HoldingInput) {
-    const res = await fetch(`${import.meta.env.BASE_URL}api/holding/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    if (!res.ok) throw new Error('local');
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'local');
-    return data;
-  }
-
-  async function saveToGithub(input: HoldingInput) {
-    const token = localStorage.getItem(GITHUB_TOKEN_KEY);
-    if (!token) throw new Error('github');
-    const relativePath = portfolioRelativePath(input.investor);
-    const api = `https://api.github.com/repos/${GITHUB_REPO.owner}/${GITHUB_REPO.repo}/contents/${relativePath}`;
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-    };
-    const existing = await fetch(`${api}?ref=${GITHUB_REPO.branch}`, { headers });
-    let portfolio: PortfolioFile = emptyPortfolio();
-    let sha: string | undefined;
-    if (existing.ok) {
-      const file = await existing.json();
-      sha = file.sha;
-      const decoded = decodeURIComponent(escape(atob(file.content.replace(/\n/g, ''))));
-      portfolio = JSON.parse(decoded);
-    }
-    const holding = buildHolding(input);
-    portfolio.holdings = [...(portfolio.holdings || []), holding];
-    portfolio.priceSource = 'manual';
-    portfolio.priceUpdatedAt = new Date().toISOString().slice(0, 10);
-    const body = {
-      message: `Add ${holding.ticker} holding for ${input.investor}`,
-      content: btoa(unescape(encodeURIComponent(`${JSON.stringify(portfolio, null, 2)}\n`))),
-      branch: GITHUB_REPO.branch,
-      ...(sha ? { sha } : {}),
-    };
-    const res = await fetch(api, {
-      method: 'PUT',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error('github');
-    return holding;
-  }
-
-  form?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (!isLoggedIn()) return;
-    const input = toInput(new FormData(form));
     if (status) status.textContent = 'Saving…';
     try {
-      await saveLocally(input);
+      await createHolding(input);
       window.location.href = `${portfolioPath(pageInvestor)}?saved=1`;
-      return;
     } catch {
-      // Local saving only works with npm run dev.
-    }
-    try {
-      await saveToGithub(input);
-      window.location.href = `${portfolioPath(pageInvestor)}?saved=1`;
-      return;
-    } catch {
-      if (status) {
-        status.textContent =
-          'Could not save from this page. On the family computer, run npm run dev, log in, and add the holding there.';
-      }
+      if (status) status.textContent = 'Could not save. Log in again, then try Save once more.';
     }
   });
 </script>

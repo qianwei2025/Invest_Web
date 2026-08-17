@@ -1,5 +1,4 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { allInvestors } from '../lib/investors';
 import {
@@ -11,9 +10,6 @@ import {
 } from '../lib/paths';
 
 const people = allInvestors();
-const latest = (await getCollection('journal'))
-  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
-  .slice(0, 4);
 ---
 
 <BaseLayout title="Shen Journal — Learn how to think">
@@ -110,29 +106,50 @@ const latest = (await getCollection('journal'))
           <h2>Newest journal entries</h2>
         </div>
       </div>
-      {latest.length === 0 ? (
+      <div data-latest>
         <div class="card empty">
-          <h3>The journals are still blank.</h3>
-          <p class="muted">Sherman and Roy will write the first entries themselves. The archive is waiting.</p>
-          <p><a href={loginPath()}>Family log in to add a journal</a></p>
+          <h3>Loading latest journals…</h3>
         </div>
-      ) : (
-        <div class="journal-list">
-          {latest.map((entry) => (
-            <a class="card journal-card" href={`${investorPath(entry.data.investor)}journal/${entry.id.split('/')[1]}/`}>
-              <div class="date-block">
-                <b>{entry.data.date.getDate()}</b>
-                {entry.data.date.toLocaleString('en-US', { month: 'short' })}
-              </div>
-              <div>
-                <div class="ticker">{entry.data.investor === 'sherman' ? 'Sherman' : 'Roy'} · {entry.data.ticker}</div>
-                <strong>{entry.data.title}</strong>
-              </div>
-              <div class={`action action-${entry.data.action.toLowerCase()}`}>{entry.data.action}</div>
-            </a>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  import { escapeHtml, fetchJournals } from '../lib/api';
+  import { journalEntryByIdPath, loginPath } from '../lib/paths';
+
+  const root = document.querySelector('[data-latest]');
+
+  async function load() {
+    if (!root) return;
+    try {
+      const latest = (await fetchJournals(undefined, 4)).slice(0, 4);
+      if (!latest.length) {
+        root.innerHTML = `<div class="card empty">
+          <h3>The journals are still blank.</h3>
+          <p class="muted">Sherman and Roy will write the first entries themselves. The archive is waiting.</p>
+          <p><a href="${loginPath()}">Family log in to add a journal</a></p>
+        </div>`;
+        return;
+      }
+      root.innerHTML = `<div class="journal-list">${latest
+        .map((entry) => {
+          const date = new Date(`${entry.date}T12:00:00`);
+          return `<a class="card journal-card" href="${journalEntryByIdPath(entry.investor, entry.id)}">
+            <div class="date-block"><b>${date.getDate()}</b>${date.toLocaleString('en-US', { month: 'short' })}</div>
+            <div>
+              <div class="ticker">${entry.investor === 'sherman' ? 'Sherman' : 'Roy'} · ${escapeHtml(entry.ticker)}</div>
+              <strong>${escapeHtml(entry.title)}</strong>
+            </div>
+            <div class="action action-${escapeHtml(entry.action.toLowerCase())}">${escapeHtml(entry.action)}</div>
+          </a>`;
+        })
+        .join('')}</div>`;
+    } catch {
+      root.innerHTML = `<div class="card empty"><h3>The journals are still blank.</h3><p class="muted"><a href="${loginPath()}">Family log in to add a journal</a></p></div>`;
+    }
+  }
+
+  load();
+</script>

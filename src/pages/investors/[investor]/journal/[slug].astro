@@ -1,46 +1,26 @@
 ---
-import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
-import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
-import ActionBadge from '../../../../components/ActionBadge.astro';
-import Confidence from '../../../../components/Confidence.astro';
-import { investors, isInvestorSlug } from '../../../../lib/investors';
-import { formatDate } from '../../../../lib/format';
-import { journalPath, researchNotePath, splitContentId } from '../../../../lib/paths';
+import { investorStaticPaths, isInvestorSlug, investors } from '../../../../lib/investors';
+import { journalPath } from '../../../../lib/paths';
 
-export async function getStaticPaths() {
-  const entries = await getCollection('journal');
-  return entries.map((entry) => {
-    const { investor, slug } = splitContentId(entry.id);
-    return { params: { investor, slug }, props: { entry } };
-  });
+/** Old Markdown-based URLs. New entries use /journal/entry/?id= */
+export function getStaticPaths() {
+  return investorStaticPaths().map((row) => ({
+    params: { investor: row.params.investor, slug: 'legacy' },
+  }));
 }
 
-const { entry } = Astro.props;
-const { investor: investorSlug } = splitContentId(entry.id);
-if (!isInvestorSlug(investorSlug)) throw new Error('Unknown investor');
-const investor = investors[investorSlug];
-const { Content } = await render(entry);
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
 ---
 
-<BaseLayout title={`${entry.data.title} — ${investor.shortName}`}>
+<BaseLayout title={`Journal moved — ${investor.shortName}`}>
   <section class="section page-hero">
     <div class="wrap">
-      <InvestorSubnav slug={investorSlug} />
-      <p><a href={journalPath(investorSlug)}>← All journal entries</a></p>
-      <span class="kicker">{entry.data.company} · {entry.data.ticker}</span>
-      <h1>{entry.data.title}</h1>
-      <div class="entry-meta">
-        <span>{formatDate(entry.data.date)}</span>
-        <ActionBadge action={entry.data.action} />
-        <span>Confidence <Confidence level={entry.data.confidence} /></span>
-        {entry.data.relatedResearch && (
-          <a href={researchNotePath(investorSlug, entry.data.relatedResearch)}>Research note</a>
-        )}
-      </div>
-      <article class="prose card card-body">
-        <Content />
-      </article>
+      <h1>This journal link format changed</h1>
+      <p class="muted">Open the journals list to find the latest entries.</p>
+      <p><a class="btn btn-ink" href={journalPath(slug)}>Back to journals</a></p>
     </div>
   </section>
 </BaseLayout>

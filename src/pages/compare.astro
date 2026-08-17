@@ -1,31 +1,6 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import ActionBadge from '../components/ActionBadge.astro';
-import Confidence from '../components/Confidence.astro';
-import { investors } from '../lib/investors';
-import { imagePath, journalEntryPath, splitContentId } from '../lib/paths';
-
-const entries = (await getCollection('journal')).sort(
-  (a, b) => b.data.date.getTime() - a.data.date.getTime(),
-);
-
-const byTicker = new Map<string, typeof entries>();
-for (const entry of entries) {
-  const key = entry.data.ticker;
-  const list = byTicker.get(key) ?? [];
-  list.push(entry);
-  byTicker.set(key, list);
-}
-
-const companies = [...byTicker.entries()]
-  .map(([ticker, list]) => ({
-    ticker,
-    company: list[0].data.company,
-    sherman: list.find((item) => item.data.investor === 'sherman'),
-    roy: list.find((item) => item.data.investor === 'roy'),
-  }))
-  .filter((row) => row.sherman || row.roy);
+import { imagePath } from '../lib/paths';
 ---
 
 <BaseLayout
@@ -48,49 +23,70 @@ const companies = [...byTicker.entries()]
   </section>
 
   <section class="section" style="padding-top:12px">
-    <div class="wrap">
-      {companies.length === 0 ? (
-        <div class="card empty">
-          <h3>Nothing to compare yet</h3>
-          <p class="muted">When Sherman and Roy both write about the same company, their notes will sit side by side here.</p>
-        </div>
-      ) : (
-        companies.map((row) => (
-        <article style="margin-bottom:36px">
-          <h2>{row.company} <span class="ticker">({row.ticker})</span></h2>
-          <div class="compare-grid">
-            {[row.sherman, row.roy].map((entry, index) => {
-              const person = index === 0 ? investors.sherman : investors.roy;
-              if (!entry) {
-                return (
-                  <div class="card compare-col">
-                    <div class="role">{person.role}</div>
-                    <h3>{person.name}</h3>
-                    <p class="muted">No journal entry yet. That is also information: one brother has not taken a written view.</p>
-                  </div>
-                );
-              }
-              const ids = splitContentId(entry.id);
-              return (
-                <div class="card compare-col">
-                  <div class="role">{person.role}</div>
-                  <h3>{person.name}</h3>
-                  <p>
-                    <ActionBadge action={entry.data.action} />
-                    <span style="margin-left:10px"><Confidence level={entry.data.confidence} /></span>
-                  </p>
-                  <p><strong>{entry.data.title}</strong></p>
-                  <p class="muted">
-                    {entry.data.date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                  </p>
-                  <p><a href={journalEntryPath(ids.investor, ids.slug)}>Read the full entry</a></p>
-                </div>
-              );
-            })}
-          </div>
-        </article>
-        ))
-      )}
+    <div class="wrap" data-compare>
+      <div class="card empty"><h3>Loading comparisons…</h3></div>
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  import { escapeHtml, fetchJournals, formatShortDate } from '../lib/api';
+  import { journalEntryByIdPath } from '../lib/paths';
+
+  const root = document.querySelector('[data-compare]');
+
+  async function load() {
+    if (!root) return;
+    try {
+      const entries = await fetchJournals(undefined, 100);
+      const byTicker = new Map<string, typeof entries>();
+      for (const entry of entries) {
+        const list = byTicker.get(entry.ticker) ?? [];
+        list.push(entry);
+        byTicker.set(entry.ticker, list);
+      }
+      const companies = [...byTicker.entries()]
+        .map(([ticker, list]) => ({
+          ticker,
+          company: list[0].company,
+          sherman: list.find((item) => item.investor === 'sherman'),
+          roy: list.find((item) => item.investor === 'roy'),
+        }))
+        .filter((row) => row.sherman || row.roy);
+
+      if (!companies.length) {
+        root.innerHTML = `<div class="card empty"><h3>Nothing to compare yet</h3><p class="muted">When Sherman and Roy both write about the same company, their notes will sit side by side here.</p></div>`;
+        return;
+      }
+
+      root.innerHTML = companies
+        .map((row) => {
+          const col = (person: 'sherman' | 'roy', label: string, entry?: (typeof entries)[number]) => {
+            if (!entry) {
+              return `<div class="card compare-col"><div class="role">${label}</div><h3>${person === 'sherman' ? 'Sherman Shen' : 'Roy Shen'}</h3><p class="muted">No journal entry yet.</p></div>`;
+            }
+            return `<div class="card compare-col">
+              <div class="role">${label}</div>
+              <h3>${person === 'sherman' ? 'Sherman Shen' : 'Roy Shen'}</h3>
+              <p><span class="badge">${escapeHtml(entry.action)}</span> · confidence ${Number(entry.confidence)}</p>
+              <p><strong>${escapeHtml(entry.title)}</strong></p>
+              <p class="muted">${formatShortDate(entry.date)}</p>
+              <p><a href="${journalEntryByIdPath(entry.investor, entry.id)}">Read the full entry</a></p>
+            </div>`;
+          };
+          return `<article style="margin-bottom:36px">
+            <h2>${escapeHtml(row.company)} <span class="ticker">(${escapeHtml(row.ticker)})</span></h2>
+            <div class="compare-grid">
+              ${col('sherman', 'Investor 1', row.sherman)}
+              ${col('roy', 'Investor 2', row.roy)}
+            </div>
+          </article>`;
+        })
+        .join('');
+    } catch {
+      root.innerHTML = `<div class="card empty"><h3>Could not load comparisons</h3></div>`;
+    }
+  }
+
+  load();
+</script>

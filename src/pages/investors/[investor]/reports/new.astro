@@ -75,8 +75,8 @@ const today = new Date().toISOString().slice(0, 10);
 </BaseLayout>
 
 <script>
-  import { GITHUB_REPO, GITHUB_TOKEN_KEY } from '../../../../lib/family-auth';
-  import { buildReportMarkdown, type ReportInput } from '../../../../lib/report-file';
+  import { createReport } from '../../../../lib/api';
+  import type { ReportInput } from '../../../../lib/report-file';
   import { reportsPath } from '../../../../lib/paths';
   import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
 
@@ -89,40 +89,6 @@ const today = new Date().toISOString().slice(0, 10);
   const allowed = isLoggedIn();
   if (form) form.hidden = !allowed;
   if (gate) gate.hidden = allowed;
-
-  async function saveLocally(input: ReportInput) {
-    const res = await fetch(`${import.meta.env.BASE_URL}api/report/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    if (!res.ok) throw new Error('local');
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'local');
-    return data;
-  }
-
-  async function saveToGithub(input: ReportInput) {
-    const token = localStorage.getItem(GITHUB_TOKEN_KEY);
-    if (!token) throw new Error('github');
-    const file = buildReportMarkdown(input);
-    const content = btoa(unescape(encodeURIComponent(file.text)));
-    const url = `https://api.github.com/repos/${GITHUB_REPO.owner}/${GITHUB_REPO.repo}/contents/${file.relativePath}`;
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-      },
-      body: JSON.stringify({
-        message: `Add report ${file.filename} for ${input.investor}`,
-        content,
-        branch: GITHUB_REPO.branch,
-      }),
-    });
-    if (!res.ok) throw new Error('github');
-    return file;
-  }
 
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -141,21 +107,10 @@ const today = new Date().toISOString().slice(0, 10);
     };
     if (status) status.textContent = 'Saving…';
     try {
-      await saveLocally(input);
+      await createReport(input);
       window.location.href = `${reportsPath(pageInvestor)}?saved=1`;
-      return;
     } catch {
-      // Local saving only works with npm run dev.
-    }
-    try {
-      await saveToGithub(input);
-      window.location.href = `${reportsPath(pageInvestor)}?saved=1`;
-      return;
-    } catch {
-      if (status) {
-        status.textContent =
-          'Could not save from this page. On the family computer, run npm run dev, log in, and add the report there.';
-      }
+      if (status) status.textContent = 'Could not save. Log in again, then try Save once more.';
     }
   });
 </script>

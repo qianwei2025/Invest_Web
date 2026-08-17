@@ -8,9 +8,15 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "api:dev": "wrangler dev --config worker/wrangler.toml",
+    "api:deploy": "wrangler deploy --config worker/wrangler.toml",
+    "api:db": "wrangler d1 execute sr-investing --config worker/wrangler.toml --remote --file=worker/schema.sql"
   },
   "dependencies": {
     "astro": "^5.13.2"
+  },
+  "devDependencies": {
+    "wrangler": "^4.123.0"
   }
 }

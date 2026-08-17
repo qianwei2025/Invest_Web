@@ -1,10 +1,8 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
 import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
-import { formatDate } from '../../../../lib/format';
-import { newReportPath, reportPath, splitContentId } from '../../../../lib/paths';
+import { newReportPath } from '../../../../lib/paths';
 
 export function getStaticPaths() {
   return investorStaticPaths();
@@ -13,15 +11,6 @@ export function getStaticPaths() {
 const slug = Astro.params.investor as string;
 if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
 const investor = investors[slug];
-
-let reports = [];
-try {
-  reports = (await getCollection('reports'))
-    .filter((entry) => entry.data.investor === slug)
-    .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
-} catch {
-  reports = [];
-}
 ---
 
 <BaseLayout title={`${investor.shortName}’s reports — Shen Journal`}>
@@ -37,41 +26,49 @@ try {
       <p>
         <a class="btn btn-gold only-family" href={newReportPath(slug)}>Add a report</a>
       </p>
-      <p class="notice" data-saved-banner hidden>Saved. Refresh if the new report is not in the list yet.</p>
-
-      {reports.length === 0 ? (
-        <div class="card empty" style="margin-top:28px">
-          <h3>No reports yet</h3>
-          <p class="muted">
-            Journals are for one company. Reports are for summarizing learning over time.
-            Add one when there is something worth remembering.
-          </p>
-        </div>
-      ) : (
-        <div class="journal-list" style="margin-top:28px">
-          {reports.map((entry) => {
-            const ids = splitContentId(entry.id);
-            return (
-              <a class="card journal-card" href={reportPath(slug, ids.slug)}>
-                <div class="date-block">
-                  <b>{entry.data.period}</b>
-                  {formatDate(entry.data.date)}
-                </div>
-                <div>
-                  <strong>{entry.data.title}</strong>
-                  <div class="muted">Period: {entry.data.period}</div>
-                </div>
-              </a>
-            );
-          })}
-        </div>
-      )}
+      <p class="notice" data-saved-banner hidden>Saved. It should appear in the list below.</p>
+      <div data-report-list style="margin-top:28px">
+        <div class="card empty"><h3>Loading reports…</h3></div>
+      </div>
     </div>
   </section>
 </BaseLayout>
 
 <script>
-  if (new URLSearchParams(window.location.search).get('saved') === '1') {
+  import { escapeHtml, fetchReports, formatShortDate } from '../../../../lib/api';
+  import { reportEntryByIdPath } from '../../../../lib/paths';
+
+  const investor = location.pathname.split('/').filter(Boolean)[1] || '';
+  const root = document.querySelector('[data-report-list]');
+
+  if (new URLSearchParams(location.search).get('saved') === '1') {
     document.querySelector('[data-saved-banner]')?.removeAttribute('hidden');
   }
+
+  async function load() {
+    if (!root) return;
+    try {
+      const items = await fetchReports(investor);
+      if (!items.length) {
+        root.innerHTML = `<div class="card empty"><h3>No reports yet</h3><p class="muted">Journals are for one company. Reports are for summarizing learning over time.</p></div>`;
+        return;
+      }
+      root.innerHTML = `<div class="journal-list">${items
+        .map((entry) => {
+          const href = reportEntryByIdPath(entry.investor, entry.id);
+          return `<a class="card journal-card" href="${href}">
+            <div class="date-block"><b>${escapeHtml(entry.period)}</b>${formatShortDate(entry.date)}</div>
+            <div>
+              <strong>${escapeHtml(entry.title)}</strong>
+              <div class="muted">Period: ${escapeHtml(entry.period)}</div>
+            </div>
+          </a>`;
+        })
+        .join('')}</div>`;
+    } catch {
+      root.innerHTML = `<div class="card empty"><h3>Could not load reports</h3></div>`;
+    }
+  }
+
+  load();
 </script>

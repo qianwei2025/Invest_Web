@@ -1,41 +1,26 @@
 ---
-import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
-import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
-import { investors, isInvestorSlug } from '../../../../lib/investors';
-import { formatDate } from '../../../../lib/format';
-import { reportsPath, splitContentId } from '../../../../lib/paths';
+import { investorStaticPaths, isInvestorSlug, investors } from '../../../../lib/investors';
+import { reportsPath } from '../../../../lib/paths';
 
-export async function getStaticPaths() {
-  try {
-    const entries = await getCollection('reports');
-    return entries.map((entry) => {
-      const { investor, slug } = splitContentId(entry.id);
-      return { params: { investor, slug }, props: { entry } };
-    });
-  } catch {
-    return [];
-  }
+/** Old Markdown-based URLs. New entries use /reports/entry/?id= */
+export function getStaticPaths() {
+  return investorStaticPaths().map((row) => ({
+    params: { investor: row.params.investor, slug: 'legacy' },
+  }));
 }
 
-const { entry } = Astro.props;
-const { investor: investorSlug } = splitContentId(entry.id);
-if (!isInvestorSlug(investorSlug)) throw new Error('Unknown investor');
-const investor = investors[investorSlug];
-const { Content } = await render(entry);
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
 ---
 
-<BaseLayout title={`${entry.data.title} — ${investor.shortName}`}>
+<BaseLayout title={`Report moved — ${investor.shortName}`}>
   <section class="section page-hero">
     <div class="wrap">
-      <InvestorSubnav slug={investorSlug} />
-      <p><a href={reportsPath(investorSlug)}>← All reports</a></p>
-      <span class="kicker">{entry.data.period}</span>
-      <h1>{entry.data.title}</h1>
-      <p class="muted">Written {formatDate(entry.data.date)}</p>
-      <article class="prose card card-body">
-        <Content />
-      </article>
+      <h1>This report link format changed</h1>
+      <p class="muted">Open the reports list to find the latest entries.</p>
+      <p><a class="btn btn-ink" href={reportsPath(slug)}>Back to reports</a></p>
     </div>
   </section>
 </BaseLayout>
