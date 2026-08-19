@@ -33,6 +33,28 @@ const investor = investors[slug];
         It is fine to show holdings here. Do not upload brokerage screenshots or account numbers.
       </p>
 
+      <div class="timeframe card card-body" data-timeframe>
+        <div class="timeframe-head">
+          <strong>Timeframe</strong>
+          <span class="muted">Totals use holdings bought in this window.</span>
+        </div>
+        <div class="chip-row">
+          <button class="chip is-on" type="button" data-preset="all">All time</button>
+          <button class="chip" type="button" data-preset="3m">Last 3 months</button>
+          <button class="chip" type="button" data-preset="ytd">This year</button>
+        </div>
+        <div class="timeframe-dates">
+          <label>
+            From
+            <input type="date" data-start />
+          </label>
+          <label>
+            To
+            <input type="date" data-end />
+          </label>
+        </div>
+      </div>
+
       <div class="stat-row" style="margin-top:22px" data-stats>
         <div class="stat"><span>Total invested</span><strong>—</strong></div>
         <div class="stat"><span>Total value</span><strong>—</strong></div>
@@ -56,6 +78,10 @@ const investor = investors[slug];
   const investor = location.pathname.split('/').filter(Boolean)[1] || '';
   const root = document.querySelector('[data-holdings]');
   const stats = document.querySelector('[data-stats]');
+  const startInput = document.querySelector<HTMLInputElement>('[data-start]');
+  const endInput = document.querySelector<HTMLInputElement>('[data-end]');
+  let allHoldings: HoldingRecordLive[] = [];
+  let activePreset = 'all';
 
   applyFamilyUI();
 
@@ -64,6 +90,44 @@ const investor = investors[slug];
   }
   if (new URLSearchParams(location.search).get('deleted') === '1') {
     document.querySelector('[data-deleted-banner]')?.removeAttribute('hidden');
+  }
+
+  function todayIso() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function addMonths(iso: string, months: number) {
+    const date = new Date(`${iso}T12:00:00`);
+    date.setMonth(date.getMonth() + months);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function applyPreset(preset: string) {
+    activePreset = preset;
+    const today = todayIso();
+    if (preset === 'all') {
+      if (startInput) startInput.value = '';
+      if (endInput) endInput.value = '';
+    } else if (preset === '3m') {
+      if (startInput) startInput.value = addMonths(today, -3);
+      if (endInput) endInput.value = today;
+    } else if (preset === 'ytd') {
+      if (startInput) startInput.value = `${new Date().getFullYear()}-01-01`;
+      if (endInput) endInput.value = today;
+    }
+    document.querySelectorAll('[data-preset]').forEach((button) => {
+      button.classList.toggle('is-on', button.getAttribute('data-preset') === preset);
+    });
+    render();
+  }
+
+  function inWindow(holding: HoldingRecordLive) {
+    const bought = holding.purchaseDate;
+    const start = startInput?.value || '';
+    const end = endInput?.value || '';
+    if (start && bought < start) return false;
+    if (end && bought > end) return false;
+    return true;
   }
 
   function compute(holdings: HoldingRecordLive[]) {
@@ -111,59 +175,84 @@ const investor = investors[slug];
     });
   }
 
+  function render() {
+    if (!root || !stats) return;
+    const filtered = allHoldings.filter(inWindow);
+    const portfolio = compute(filtered);
+    const family = isLoggedIn();
+    stats.innerHTML = `
+      <div class="stat"><span>Total invested</span><strong>${money(portfolio.invested)}</strong></div>
+      <div class="stat"><span>Total value</span><strong>${money(portfolio.value)}</strong></div>
+      <div class="stat"><span>Total return</span><strong class="${portfolio.gain >= 0 ? 'pos' : 'neg'}">${money(portfolio.gain)}</strong></div>
+      <div class="stat"><span>Total return %</span><strong class="${portfolio.gainPct >= 0 ? 'pos' : 'neg'}">${percent(portfolio.gainPct)}</strong></div>`;
+
+    if (!allHoldings.length) {
+      root.innerHTML = `<div class="card empty"><h3>No holdings yet</h3><p class="muted">Log in, then click Add a holding.</p></div>`;
+      return;
+    }
+
+    if (!portfolio.rows.length) {
+      root.innerHTML = `<div class="card empty"><h3>No holdings in this timeframe</h3><p class="muted">Try All time, or pick a From date on or before the buy dates.</p></div>`;
+      return;
+    }
+
+    root.innerHTML = `<p class="muted">${portfolio.openCount} open · ${portfolio.soldCount} sold${activePreset !== 'all' || startInput?.value ? ' in this timeframe' : ''}</p>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+          <th>Company</th><th>Buy</th><th>Mark</th><th>Shares</th><th>Invested</th><th>Value</th><th>Return</th>
+          ${family ? '<th></th>' : ''}
+        </tr></thead>
+        <tbody>
+          ${portfolio.rows
+            .map((row) => {
+              const edit = holdingEditPath(row.investor, row.id);
+              const actions = family
+                ? `<td><div class="row-actions">
+                    <a class="btn btn-small" href="${edit}">Edit</a>
+                    <button class="btn btn-small" type="button" data-delete="${row.id}">Delete</button>
+                  </div></td>`
+                : '';
+              return `<tr>
+            <td><strong>${escapeHtml(row.ticker)}</strong><div class="muted">${escapeHtml(row.company)}</div></td>
+            <td>${money(Number(row.purchasePrice))}<div class="muted">${escapeHtml(row.purchaseDate)}</div></td>
+            <td>${money(row.mark)}${row.sold ? '<div class="muted">Sold</div>' : ''}</td>
+            <td>${Number(row.shares)}</td>
+            <td>${money(row.originalInvestment)}</td>
+            <td>${money(row.currentValue)}</td>
+            <td class="${row.gain >= 0 ? 'pos' : 'neg'}">${money(row.gain)}<div>${percent(row.gainPct)}</div></td>
+            ${actions}
+          </tr>`;
+            })
+            .join('')}
+        </tbody>
+      </table></div>`;
+    bindDeletes();
+    applyFamilyUI();
+  }
+
   async function load() {
     if (!root || !stats) return;
     try {
-      const holdings = await fetchHoldings(investor);
-      const portfolio = compute(holdings);
-      const family = isLoggedIn();
-      stats.innerHTML = `
-        <div class="stat"><span>Total invested</span><strong>${money(portfolio.invested)}</strong></div>
-        <div class="stat"><span>Total value</span><strong>${money(portfolio.value)}</strong></div>
-        <div class="stat"><span>Total return</span><strong class="${portfolio.gain >= 0 ? 'pos' : 'neg'}">${money(portfolio.gain)}</strong></div>
-        <div class="stat"><span>Total return %</span><strong class="${portfolio.gainPct >= 0 ? 'pos' : 'neg'}">${percent(portfolio.gainPct)}</strong></div>`;
-
-      if (!portfolio.rows.length) {
-        root.innerHTML = `<div class="card empty"><h3>No holdings yet</h3><p class="muted">Log in, then click Add a holding.</p></div>`;
-        return;
-      }
-
-      root.innerHTML = `<p class="muted">${portfolio.openCount} open · ${portfolio.soldCount} sold</p>
-        <div class="table-wrap"><table class="data-table">
-          <thead><tr>
-            <th>Company</th><th>Buy</th><th>Mark</th><th>Shares</th><th>Invested</th><th>Value</th><th>Return</th>
-            ${family ? '<th></th>' : ''}
-          </tr></thead>
-          <tbody>
-            ${portfolio.rows
-              .map((row) => {
-                const edit = holdingEditPath(row.investor, row.id);
-                const actions = family
-                  ? `<td><div class="row-actions">
-                      <a class="btn btn-small" href="${edit}">Edit</a>
-                      <button class="btn btn-small" type="button" data-delete="${row.id}">Delete</button>
-                    </div></td>`
-                  : '';
-                return `<tr>
-              <td><strong>${escapeHtml(row.ticker)}</strong><div class="muted">${escapeHtml(row.company)}</div></td>
-              <td>${money(Number(row.purchasePrice))}<div class="muted">${escapeHtml(row.purchaseDate)}</div></td>
-              <td>${money(row.mark)}${row.sold ? '<div class="muted">Sold</div>' : ''}</td>
-              <td>${Number(row.shares)}</td>
-              <td>${money(row.originalInvestment)}</td>
-              <td>${money(row.currentValue)}</td>
-              <td class="${row.gain >= 0 ? 'pos' : 'neg'}">${money(row.gain)}<div>${percent(row.gainPct)}</div></td>
-              ${actions}
-            </tr>`;
-              })
-              .join('')}
-          </tbody>
-        </table></div>`;
-      bindDeletes();
-      applyFamilyUI();
+      allHoldings = await fetchHoldings(investor);
+      render();
     } catch {
       root.innerHTML = `<div class="card empty"><h3>Could not load holdings</h3></div>`;
     }
   }
+
+  document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((button) => {
+    button.addEventListener('click', () => applyPreset(button.dataset.preset || 'all'));
+  });
+  startInput?.addEventListener('change', () => {
+    activePreset = 'custom';
+    document.querySelectorAll('[data-preset]').forEach((button) => button.classList.remove('is-on'));
+    render();
+  });
+  endInput?.addEventListener('change', () => {
+    activePreset = 'custom';
+    document.querySelectorAll('[data-preset]').forEach((button) => button.classList.remove('is-on'));
+    render();
+  });
 
   load();
 </script>

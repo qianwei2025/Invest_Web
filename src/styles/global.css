@@ -563,6 +563,49 @@ th {
   font-family: var(--font-mono);
 }
 
+.timeframe {
+  margin-top: 22px;
+}
+
+.timeframe-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.chip.is-on {
+  background: var(--forest);
+  color: var(--gold-soft);
+  border-color: var(--forest);
+}
+
+.timeframe-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 420px;
+}
+
 .timeline {
   display: grid;
   gap: 10px;
@@ -690,7 +733,7 @@ pre.output {
 }
 
 @media (max-width: 860px) {
-  .grid-2, .grid-3, .compare-grid, .stat-row, .split-hero, .journal-card {
+  .grid-2, .grid-3, .compare-grid, .stat-row, .split-hero, .journal-card, .timeframe-dates {
     grid-template-columns: 1fr;
   }
 
