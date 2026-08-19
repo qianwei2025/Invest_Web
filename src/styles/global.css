@@ -350,6 +350,15 @@ h1 {
   max-width: 800px;
 }
 
+.quote-band cite {
+  display: block;
+  margin-top: 16px;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-style: normal;
+  color: var(--gold);
+}
+
 .page-hero {
   padding: 48px 0 12px;
 }
