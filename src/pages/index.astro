@@ -48,9 +48,6 @@ const people = allInvestors();
               <h3>{person.name}</h3>
               <p>{person.tagline}</p>
               <p class="muted">{person.bio}</p>
-              <div class="tag-row">
-                {person.interests.map((item) => <span class="tag">{item}</span>)}
-              </div>
               <p style="margin-top:18px">
                 <a class="btn btn-ink" href={investorPath(person.slug)}>Open {person.shortName}’s profile</a>
               </p>

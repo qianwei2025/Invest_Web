@@ -36,9 +36,6 @@ const investor = investors[slug];
           <h1>{investor.name}</h1>
           <p class="lede" style="color:var(--muted)">{investor.tagline}</p>
           <p>{investor.bio}</p>
-          <div class="tag-row">
-            {investor.interests.map((item) => <span class="tag">{item}</span>)}
-          </div>
           <p style="margin-top:22px">
             <a class="btn btn-gold only-family" href={newJournalPath(slug)}>Add a journal</a>
             <a class="btn btn-ink only-family" href={newReportPath(slug)}>Add a report</a>
