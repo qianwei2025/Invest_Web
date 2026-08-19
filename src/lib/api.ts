@@ -194,6 +194,31 @@ export async function createHolding(input: HoldingInput) {
   return data.item as HoldingRecordLive;
 }
 
+export async function fetchHolding(id: string) {
+  const data = await parse(await fetch(`${API_BASE}/holdings/${id}`));
+  return data.item as HoldingRecordLive;
+}
+
+export async function updateHolding(id: string, input: HoldingInput) {
+  const data = await parse(
+    await fetch(`${API_BASE}/holdings/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(input),
+    }),
+  );
+  return data.item as HoldingRecordLive;
+}
+
+export async function deleteHolding(id: string) {
+  await parse(
+    await fetch(`${API_BASE}/holdings/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    }),
+  );
+}
+
 export function escapeHtml(value: string) {
   return value
     .replace(/&/g, '&amp;')

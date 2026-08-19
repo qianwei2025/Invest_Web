@@ -28,6 +28,7 @@ const investor = investors[slug];
         <a class="btn" href={`${loginPath()}?next=portfolio`} data-when="logged-out">Family log in</a>
       </p>
       <p class="notice" data-saved-banner hidden>Saved. It should appear in the list below.</p>
+      <p class="notice" data-deleted-banner hidden>Deleted.</p>
       <p class="notice">
         It is fine to show holdings here. Do not upload brokerage screenshots or account numbers.
       </p>
@@ -47,15 +48,22 @@ const investor = investors[slug];
 </BaseLayout>
 
 <script>
-  import { escapeHtml, fetchHoldings, money, percent } from '../../../../lib/api';
+  import { deleteHolding, escapeHtml, fetchHoldings, money, percent } from '../../../../lib/api';
   import type { HoldingRecordLive } from '../../../../lib/api';
+  import { holdingEditPath, portfolioPath } from '../../../../lib/paths';
+  import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
 
   const investor = location.pathname.split('/').filter(Boolean)[1] || '';
   const root = document.querySelector('[data-holdings]');
   const stats = document.querySelector('[data-stats]');
 
+  applyFamilyUI();
+
   if (new URLSearchParams(location.search).get('saved') === '1') {
     document.querySelector('[data-saved-banner]')?.removeAttribute('hidden');
+  }
+  if (new URLSearchParams(location.search).get('deleted') === '1') {
+    document.querySelector('[data-deleted-banner]')?.removeAttribute('hidden');
   }
 
   function compute(holdings: HoldingRecordLive[]) {
@@ -83,11 +91,32 @@ const investor = investors[slug];
     };
   }
 
+  function bindDeletes() {
+    root?.querySelectorAll<HTMLButtonElement>('[data-delete]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const id = button.dataset.delete;
+        if (!id) return;
+        if (!confirm('Delete this holding? This cannot be undone.')) return;
+        button.disabled = true;
+        button.textContent = 'Deleting…';
+        try {
+          await deleteHolding(id);
+          window.location.href = `${portfolioPath(investor)}?deleted=1`;
+        } catch {
+          button.disabled = false;
+          button.textContent = 'Delete';
+          alert('Could not delete. Log in again and try once more.');
+        }
+      });
+    });
+  }
+
   async function load() {
     if (!root || !stats) return;
     try {
       const holdings = await fetchHoldings(investor);
       const portfolio = compute(holdings);
+      const family = isLoggedIn();
       stats.innerHTML = `
         <div class="stat"><span>Total invested</span><strong>${money(portfolio.invested)}</strong></div>
         <div class="stat"><span>Total value</span><strong>${money(portfolio.value)}</strong></div>
@@ -103,11 +132,19 @@ const investor = investors[slug];
         <div class="table-wrap"><table class="data-table">
           <thead><tr>
             <th>Company</th><th>Buy</th><th>Mark</th><th>Shares</th><th>Invested</th><th>Value</th><th>Return</th>
+            ${family ? '<th></th>' : ''}
           </tr></thead>
           <tbody>
             ${portfolio.rows
-              .map(
-                (row) => `<tr>
+              .map((row) => {
+                const edit = holdingEditPath(row.investor, row.id);
+                const actions = family
+                  ? `<td><div class="row-actions">
+                      <a class="btn btn-small" href="${edit}">Edit</a>
+                      <button class="btn btn-small" type="button" data-delete="${row.id}">Delete</button>
+                    </div></td>`
+                  : '';
+                return `<tr>
               <td><strong>${escapeHtml(row.ticker)}</strong><div class="muted">${escapeHtml(row.company)}</div></td>
               <td>${money(Number(row.purchasePrice))}<div class="muted">${escapeHtml(row.purchaseDate)}</div></td>
               <td>${money(row.mark)}${row.sold ? '<div class="muted">Sold</div>' : ''}</td>
@@ -115,11 +152,14 @@ const investor = investors[slug];
               <td>${money(row.originalInvestment)}</td>
               <td>${money(row.currentValue)}</td>
               <td class="${row.gain >= 0 ? 'pos' : 'neg'}">${money(row.gain)}<div>${percent(row.gainPct)}</div></td>
-            </tr>`,
-              )
+              ${actions}
+            </tr>`;
+              })
               .join('')}
           </tbody>
         </table></div>`;
+      bindDeletes();
+      applyFamilyUI();
     } catch {
       root.innerHTML = `<div class="card empty"><h3>Could not load holdings</h3></div>`;
     }

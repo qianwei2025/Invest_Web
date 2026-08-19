@@ -57,6 +57,10 @@ export function portfolioPath(slug: InvestorSlug | string) {
   return `${base()}investors/${slug}/portfolio/`;
 }
 
+export function holdingEditPath(slug: InvestorSlug | string, id: string) {
+  return `${base()}investors/${slug}/portfolio/edit/?id=${encodeURIComponent(id)}`;
+}
+
 export function researchPath(slug: InvestorSlug | string) {
   return `${base()}investors/${slug}/research/`;
 }

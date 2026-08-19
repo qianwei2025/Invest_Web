@@ -115,8 +115,20 @@ export default {
         return listHoldings(url, env, cors);
       }
 
+      if (request.method === 'GET' && path.startsWith('/holdings/')) {
+        return getHolding(path.slice('/holdings/'.length), env, cors);
+      }
+
       if (request.method === 'POST' && path === '/holdings') {
         return createHolding(request, env, cors);
+      }
+
+      if (request.method === 'PUT' && path.startsWith('/holdings/')) {
+        return updateHolding(path.slice('/holdings/'.length), request, env, cors);
+      }
+
+      if (request.method === 'DELETE' && path.startsWith('/holdings/')) {
+        return deleteHolding(path.slice('/holdings/'.length), request, env, cors);
       }
 
       return json({ ok: false, error: 'Not found' }, cors, 404);
@@ -521,6 +533,80 @@ async function createHolding(request: Request, env: Env, cors: HeadersInit) {
     .run();
   const item = await env.DB.prepare(`SELECT * FROM holdings WHERE id = ?`).bind(id).first();
   return json({ ok: true, item: mapHolding(item) }, cors, 201);
+}
+
+function parseHoldingFields(body: HoldingBody) {
+  const ticker = (body.ticker || slugify(body.company)).toUpperCase();
+  const sellPrice =
+    body.sellPrice === undefined || body.sellPrice === null || Number.isNaN(Number(body.sellPrice))
+      ? null
+      : Number(body.sellPrice);
+  const sellDate = sellPrice === null ? null : body.sellDate?.trim() || null;
+  return {
+    ticker,
+    sellPrice,
+    sellDate,
+    company: body.company.trim(),
+    purchaseDate: body.purchaseDate,
+    purchasePrice: Number(body.purchasePrice),
+    currentPrice: Number(body.currentPrice),
+    shares: Number(body.shares),
+    originalThesis: (body.originalThesis || '').trim(),
+    relatedJournal: (body.relatedJournal || '').trim(),
+  };
+}
+
+async function getHolding(id: string, env: Env, cors: HeadersInit) {
+  const row = await env.DB.prepare(`SELECT * FROM holdings WHERE id = ?`).bind(id).first();
+  if (!row) return json({ ok: false, error: 'Not found' }, cors, 404);
+  return json({ ok: true, item: mapHolding(row) }, cors);
+}
+
+async function updateHolding(id: string, request: Request, env: Env, cors: HeadersInit) {
+  const denied = await requireAuth(request, env, cors);
+  if (denied) return denied;
+  const existing = await env.DB.prepare(`SELECT id FROM holdings WHERE id = ?`).bind(id).first();
+  if (!existing) return json({ ok: false, error: 'Not found' }, cors, 404);
+  const body = (await request.json()) as HoldingBody;
+  if (!INVESTORS.has(body.investor)) return json({ ok: false, error: 'Bad investor' }, cors, 400);
+  if (!body.company?.trim() || !body.purchaseDate) {
+    return json({ ok: false, error: 'Missing required fields' }, cors, 400);
+  }
+  const fields = parseHoldingFields(body);
+  await env.DB.prepare(
+    `UPDATE holdings SET
+      investor = ?, company = ?, ticker = ?, purchase_date = ?, purchase_price = ?,
+      current_price = ?, shares = ?, sell_price = ?, sell_date = ?, original_thesis = ?,
+      related_journal = ?, updated_at = ?
+     WHERE id = ?`,
+  )
+    .bind(
+      body.investor,
+      fields.company,
+      fields.ticker,
+      fields.purchaseDate,
+      fields.purchasePrice,
+      fields.currentPrice,
+      fields.shares,
+      fields.sellPrice,
+      fields.sellDate,
+      fields.originalThesis,
+      fields.relatedJournal,
+      nowIso(),
+      id,
+    )
+    .run();
+  const item = await env.DB.prepare(`SELECT * FROM holdings WHERE id = ?`).bind(id).first();
+  return json({ ok: true, item: mapHolding(item) }, cors);
+}
+
+async function deleteHolding(id: string, request: Request, env: Env, cors: HeadersInit) {
+  const denied = await requireAuth(request, env, cors);
+  if (denied) return denied;
+  const existing = await env.DB.prepare(`SELECT id FROM holdings WHERE id = ?`).bind(id).first();
+  if (!existing) return json({ ok: false, error: 'Not found' }, cors, 404);
+  await env.DB.prepare(`DELETE FROM holdings WHERE id = ?`).bind(id).run();
+  return json({ ok: true }, cors);
 }
 
 function mapJournal(row: Record<string, unknown> | null) {

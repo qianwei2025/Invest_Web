@@ -1,0 +1,150 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import InvestorSubnav from '../../../../components/InvestorSubnav.astro';
+import { investors, investorStaticPaths, isInvestorSlug } from '../../../../lib/investors';
+import { loginPath } from '../../../../lib/paths';
+
+export function getStaticPaths() {
+  return investorStaticPaths();
+}
+
+const slug = Astro.params.investor as string;
+if (!isInvestorSlug(slug)) throw new Error('Unknown investor');
+const investor = investors[slug];
+---
+
+<BaseLayout title={`Edit holding — ${investor.shortName}`}>
+  <section class="section page-hero">
+    <div class="wrap" style="max-width: 760px">
+      <InvestorSubnav slug={slug} />
+      <span class="kicker">{investor.name}</span>
+      <h1>Edit a holding</h1>
+      <p class="muted">Update the buy price, current price, shares, or sell details. Totals recalculate automatically.</p>
+
+      <div class="card card-body" data-gate hidden>
+        <p>Log in first to edit a holding.</p>
+        <p><a class="btn btn-ink" href={`${loginPath()}?next=portfolio`}>Family log in</a></p>
+      </div>
+
+      <div data-loading class="card empty"><h3>Loading…</h3></div>
+
+      <form class="form card card-body" data-holding-form hidden>
+        <input type="hidden" name="investor" value={slug} />
+        <label>
+          Company
+          <input name="company" required />
+        </label>
+        <label>
+          Ticker
+          <input name="ticker" />
+        </label>
+        <label>
+          Buy date
+          <input type="date" name="purchaseDate" required />
+        </label>
+        <label>
+          Buy price (per share)
+          <input type="number" name="purchasePrice" min="0" step="0.01" required />
+        </label>
+        <label>
+          Shares
+          <input type="number" name="shares" min="0" step="0.0001" required />
+        </label>
+        <label>
+          Current price (per share)
+          <input type="number" name="currentPrice" min="0" step="0.01" required />
+        </label>
+        <label>
+          Sell price (per share, only if sold)
+          <input type="number" name="sellPrice" min="0" step="0.01" placeholder="Leave blank if still holding" />
+        </label>
+        <label>
+          Sell date (only if sold)
+          <input type="date" name="sellDate" />
+        </label>
+        <label>
+          Original thesis
+          <textarea name="originalThesis"></textarea>
+        </label>
+        <button class="btn btn-gold" type="submit">Save changes</button>
+        <p class="muted" data-save-status></p>
+      </form>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { fetchHolding, updateHolding } from '../../../../lib/api';
+  import type { HoldingInput } from '../../../../lib/portfolio-file';
+  import { loginPath, portfolioPath } from '../../../../lib/paths';
+  import { applyFamilyUI, isLoggedIn } from '../../../../scripts/family';
+
+  const form = document.querySelector<HTMLFormElement>('[data-holding-form]');
+  const gate = document.querySelector<HTMLElement>('[data-gate]');
+  const loading = document.querySelector<HTMLElement>('[data-loading]');
+  const status = document.querySelector<HTMLElement>('[data-save-status]');
+  const id = new URLSearchParams(location.search).get('id');
+
+  applyFamilyUI();
+  const allowed = isLoggedIn();
+  if (gate) gate.hidden = allowed;
+  if (!allowed && loading) loading.hidden = true;
+
+  async function load() {
+    if (!allowed || !form || !id) {
+      if (loading) loading.hidden = true;
+      return;
+    }
+    try {
+      const entry = await fetchHolding(id);
+      const set = (name: string, value: string) => {
+        const el = form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
+        if (el) el.value = value;
+      };
+      set('investor', entry.investor);
+      set('company', entry.company);
+      set('ticker', entry.ticker);
+      set('purchaseDate', entry.purchaseDate);
+      set('purchasePrice', String(entry.purchasePrice ?? ''));
+      set('shares', String(entry.shares ?? ''));
+      set('currentPrice', String(entry.currentPrice ?? ''));
+      set('sellPrice', entry.sellPrice === null || entry.sellPrice === undefined ? '' : String(entry.sellPrice));
+      set('sellDate', entry.sellDate || '');
+      set('originalThesis', entry.originalThesis || '');
+      if (loading) loading.hidden = true;
+      form.hidden = false;
+    } catch {
+      if (loading) {
+        loading.innerHTML = `<h3>Could not load this holding</h3><p><a href="${loginPath()}?next=portfolio">Log in</a> and try again.</p>`;
+      }
+    }
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!isLoggedIn() || !id) return;
+    const data = new FormData(form);
+    const sellRaw = String(data.get('sellPrice') || '').trim();
+    const input: HoldingInput = {
+      investor: String(data.get('investor')) as HoldingInput['investor'],
+      company: String(data.get('company')),
+      ticker: String(data.get('ticker')),
+      purchaseDate: String(data.get('purchaseDate')),
+      purchasePrice: Number(data.get('purchasePrice')),
+      currentPrice: Number(data.get('currentPrice')),
+      shares: Number(data.get('shares')),
+      sellPrice: sellRaw === '' ? null : Number(sellRaw),
+      sellDate: String(data.get('sellDate') || '').trim() || null,
+      originalThesis: String(data.get('originalThesis') || ''),
+    };
+    if (status) status.textContent = 'Saving…';
+    try {
+      await updateHolding(id, input);
+      window.location.href = `${portfolioPath(input.investor)}?saved=1`;
+    } catch {
+      if (status) status.textContent = 'Could not save changes. Log in again and try once more.';
+    }
+  });
+
+  load();
+</script>
