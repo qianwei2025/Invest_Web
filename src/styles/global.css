@@ -304,9 +304,10 @@ h1 {
 
 .investor-card img {
   width: 100%;
-  height: 280px;
+  height: auto;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
-  object-position: top;
+  object-position: center 18%;
 }
 
 .investor-card h3 {
@@ -635,9 +636,10 @@ th {
 
 .portrait img {
   width: 100%;
-  height: 420px;
+  height: auto;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
-  object-position: top;
+  object-position: center 18%;
 }
 
 .form {
@@ -706,7 +708,7 @@ pre.output {
   }
   .nav.open { display: flex; }
   .hero { min-height: 70vh; }
-  .investor-card img, .portrait img { height: 260px; }
+  .investor-card img, .portrait img { height: auto; }
 }
 
 .btn-small {
